@@ -6,5 +6,8 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.{spec,test}.ts'],
     passWithNoTests: false,
+    env: {
+      APP_NODE_ENV: 'test',
+    },
   },
 });

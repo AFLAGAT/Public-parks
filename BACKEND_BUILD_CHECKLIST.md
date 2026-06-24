@@ -110,7 +110,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [x] **Initialize production-oriented project structure.** **Priority:** High. **Purpose:** Create module boundaries that mirror the architecture instead of a flat prototype layout.
   - **Dependencies:** Chosen backend framework, module naming conventions, test layout.
 
-- [ ] **Create configuration management layer.** **Priority:** Critical. **Purpose:** Centralize typed runtime configuration for database, cache, queues, Telebirr, auth, storage, and observability.
+- [x] **Create configuration management layer.** **Priority:** Critical. **Purpose:** Centralize typed runtime configuration for database, cache, queues, Telebirr, auth, storage, and observability.
   - **Security considerations:** Reject startup when required secrets are missing, malformed, or accidentally using development defaults in staging or production.
 
 - [ ] **Set up secrets management.** **Priority:** Critical. **Purpose:** Keep credentials out of source code, committed env files, Docker images, and logs.

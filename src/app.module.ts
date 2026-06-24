@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from './config/config.module';
 import { AuthModule } from './auth/auth.module';
 import { FacilitiesModule } from './facilities/facilities.module';
 import { SlotBookingModule } from './slot-booking/slot-booking.module';
@@ -12,6 +13,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
 @Module({
   imports: [
+    ConfigModule,
     AuthModule,
     FacilitiesModule,
     SlotBookingModule,
