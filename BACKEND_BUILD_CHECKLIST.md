@@ -113,7 +113,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [x] **Create configuration management layer.** **Priority:** Critical. **Purpose:** Centralize typed runtime configuration for database, cache, queues, Telebirr, auth, storage, and observability.
   - **Security considerations:** Reject startup when required secrets are missing, malformed, or accidentally using development defaults in staging or production.
 
-- [ ] **Set up secrets management.** **Priority:** Critical. **Purpose:** Keep credentials out of source code, committed env files, Docker images, and logs.
+- [x] **Set up secrets management.** **Priority:** Critical. **Purpose:** Keep credentials out of source code, committed env files, Docker images, and logs.
   - **Security considerations:** Use a secrets manager or platform secret store; rotate Telebirr keys, JWT signing keys, database passwords, and object storage credentials.
   - **Dependencies:** Deployment platform, CI/CD secret injection, access control policy.
 

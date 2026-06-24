@@ -17,6 +17,47 @@ const logEnvSchema = z.object({
 export const envSchema = appEnvSchema.merge(logEnvSchema);
 export type Env = z.infer<typeof envSchema>;
 
+/**
+ * Registry of variables treated as secrets. Each entry's `devPlaceholders` are
+ * checked against the parsed env value when `APP_NODE_ENV` is `staging` or
+ * `production` — any match refuses startup with a per-variable error.
+ *
+ * Empty for now. Each later Phase 2 item that introduces a secret (e.g.
+ * `DB_PRIMARY_URL`, `JWT_SIGNING_KEY`, `TELEBIRR_APP_SECRET`,
+ * `TELEBIRR_RSA_PRIVATE_KEY`, object storage credentials) appends its own
+ * entry here as part of that item's checklist work.
+ */
+export interface SecretRegistryEntry {
+  readonly key: keyof Env;
+  readonly devPlaceholders: readonly string[];
+}
+
+export const SECRET_REGISTRY: readonly SecretRegistryEntry[] = [];
+
+export function assertNoDevSecretPlaceholders(
+  env: Env,
+  registry: readonly SecretRegistryEntry[] = SECRET_REGISTRY,
+): void {
+  if (env.APP_NODE_ENV !== 'production' && env.APP_NODE_ENV !== 'staging') {
+    return;
+  }
+  const offenders: string[] = [];
+  for (const entry of registry) {
+    const value = env[entry.key];
+    if (typeof value !== 'string') {
+      continue;
+    }
+    if (entry.devPlaceholders.includes(value)) {
+      offenders.push(String(entry.key));
+    }
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `Refusing to boot in ${env.APP_NODE_ENV}: the following secrets still hold known development placeholder values: ${offenders.join(', ')}. Rotate them via the deployment platform's secret store before starting.`,
+    );
+  }
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = envSchema.safeParse(raw);
   if (!result.success) {
@@ -25,5 +66,6 @@ export function validateEnv(raw: Record<string, unknown>): Env {
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+  assertNoDevSecretPlaceholders(result.data);
   return result.data;
 }
