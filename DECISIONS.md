@@ -8,7 +8,7 @@ Format: **Decision** → **Choice** — *reason*. Status shows whether this is r
 
 ## Phase 1 — Architecture
 
-**Module boundaries** → Modular monolith, one deployable, folder-per-domain: `auth`, `facilities`, `slot-booking`, `entrance-ticketing`, `payments`, `qr`, `notifications`, `staff-sync`, `admin`, `analytics`. Internal contracts as TypeScript interfaces between folders. — *Avoids microservices operational overhead at solo-build scale while keeping future service extraction possible without a rewrite.* **Confirmed.**
+**Module boundaries** → Modular monolith, one deployable, folder-per-domain: `auth`, `facilities`, `slot-booking`, `entrance-ticketing`, `payments`, `qr`, `notifications`, `admin-analytics`, `sync`, `audit-logs`. Internal contracts as TypeScript interfaces between folders. — *Avoids microservices operational overhead at solo-build scale while keeping future service extraction possible without a rewrite. Folder list harmonized with `NamingConventions.md` §3 in Phase 2 — `admin` and `analytics` are co-located as `admin-analytics` (the admin dashboard's primary job is analytics; no clean seam between them), `staff-sync` shortened to `sync`, and `audit-logs` is its own folder so the immutable-append-only DB role constraint lives next to the code that writes there.* **Confirmed.**
 
 **Payable polymorphic contract** → `payments.payable_type` enum (`slot_reservation`, `entrance_ticket`, `shared_participant_payment`) + `payable_id` UUID. Existence/ownership validated in the service layer, not a DB foreign key (Postgres doesn't support polymorphic FKs natively). — *Standard pattern for one payment system serving multiple domains.* **Confirmed.**
 

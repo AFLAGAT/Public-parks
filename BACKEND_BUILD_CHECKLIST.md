@@ -107,7 +107,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 
 ## Phase 2: Backend Foundation
 
-- [ ] **Initialize production-oriented project structure.** **Priority:** High. **Purpose:** Create module boundaries that mirror the architecture instead of a flat prototype layout.
+- [x] **Initialize production-oriented project structure.** **Priority:** High. **Purpose:** Create module boundaries that mirror the architecture instead of a flat prototype layout.
   - **Dependencies:** Chosen backend framework, module naming conventions, test layout.
 
 - [ ] **Create configuration management layer.** **Priority:** Critical. **Purpose:** Centralize typed runtime configuration for database, cache, queues, Telebirr, auth, storage, and observability.

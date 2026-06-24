@@ -31,7 +31,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 
 ## Phase 2 — Backend Foundation
 
-- _(no entries yet)_
+- [Initialize production-oriented project structure](phase-02.md#initialize-production-oriented-project-structure) — NestJS skeleton with the ten domain module folders, strict TS, Vitest, `/v1` global prefix; build + smoke test green.
 
 ## Phase 3 — Database Design
 
