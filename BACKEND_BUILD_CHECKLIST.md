@@ -117,7 +117,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Security considerations:** Use a secrets manager or platform secret store; rotate Telebirr keys, JWT signing keys, database passwords, and object storage credentials.
   - **Dependencies:** Deployment platform, CI/CD secret injection, access control policy.
 
-- [ ] **Create fully separated environments.** **Priority:** Critical. **Purpose:** Ensure dev, staging, and production cannot share credentials, databases, object storage, queues, Telebirr credentials, or admin sessions.
+- [x] **Create fully separated environments.** **Priority:** Critical. **Purpose:** Ensure dev, staging, and production cannot share credentials, databases, object storage, queues, Telebirr credentials, or admin sessions.
   - **Security considerations:** Production data must not be copied into lower environments without masking and explicit approval.
   - **Dependencies:** Infrastructure accounts/projects, secrets manager, database provisioning.
 

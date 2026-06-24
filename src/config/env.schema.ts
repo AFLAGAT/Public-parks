@@ -58,6 +58,47 @@ export function assertNoDevSecretPlaceholders(
   }
 }
 
+/**
+ * Registry of variables whose values must NOT point at development
+ * infrastructure when running in `staging` or `production`. Each entry pairs
+ * an env variable with regex patterns indicating "this is a dev/local value."
+ *
+ * Empty for now. Each later Phase 2 item that introduces a connection string
+ * (e.g. `DB_PRIMARY_URL`, `REDIS_URL`, `STORAGE_ENDPOINT`) appends its own
+ * entry — typically matching `localhost`, `127.0.0.1`, `0.0.0.0`,
+ * `host.docker.internal`, or known sandbox hostnames.
+ */
+export interface DevInfraRegistryEntry {
+  readonly key: keyof Env;
+  readonly patterns: readonly RegExp[];
+}
+
+export const DEV_INFRA_REGISTRY: readonly DevInfraRegistryEntry[] = [];
+
+export function assertNoDevInfraValues(
+  env: Env,
+  registry: readonly DevInfraRegistryEntry[] = DEV_INFRA_REGISTRY,
+): void {
+  if (env.APP_NODE_ENV !== 'production' && env.APP_NODE_ENV !== 'staging') {
+    return;
+  }
+  const offenders: string[] = [];
+  for (const entry of registry) {
+    const value = env[entry.key];
+    if (typeof value !== 'string') {
+      continue;
+    }
+    if (entry.patterns.some((pattern) => pattern.test(value))) {
+      offenders.push(String(entry.key));
+    }
+  }
+  if (offenders.length > 0) {
+    throw new Error(
+      `Refusing to boot in ${env.APP_NODE_ENV}: the following variables point at development infrastructure: ${offenders.join(', ')}. Use the ${env.APP_NODE_ENV} environment's own credentials and endpoints.`,
+    );
+  }
+}
+
 export function validateEnv(raw: Record<string, unknown>): Env {
   const result = envSchema.safeParse(raw);
   if (!result.success) {
@@ -67,5 +108,6 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   assertNoDevSecretPlaceholders(result.data);
+  assertNoDevInfraValues(result.data);
   return result.data;
 }

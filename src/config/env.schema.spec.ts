@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertNoDevInfraValues,
   assertNoDevSecretPlaceholders,
+  DevInfraRegistryEntry,
   SecretRegistryEntry,
   validateEnv,
 } from './env.schema';
@@ -107,6 +109,75 @@ describe('assertNoDevSecretPlaceholders', () => {
   it('passes with the default empty registry', () => {
     expect(() =>
       assertNoDevSecretPlaceholders({
+        APP_NODE_ENV: 'production',
+        APP_PORT: 8080,
+        LOG_LEVEL: 'info',
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe('assertNoDevInfraValues', () => {
+  // Synthetic registry pretending APP_PORT (a string-typed value, in this
+  // mock) is a connection string that must not point at localhost.
+  const fakeInfra: DevInfraRegistryEntry = {
+    key: 'APP_PORT',
+    patterns: [/localhost/i, /127\.0\.0\.1/, /host\.docker\.internal/i],
+  };
+
+  it('skips the check in development', () => {
+    expect(() =>
+      assertNoDevInfraValues(
+        { APP_NODE_ENV: 'development', APP_PORT: 'postgres://localhost/db' } as unknown as Parameters<
+          typeof assertNoDevInfraValues
+        >[0],
+        [fakeInfra],
+      ),
+    ).not.toThrow();
+  });
+
+  it('throws in production when a registered variable points at localhost', () => {
+    expect(() =>
+      assertNoDevInfraValues(
+        {
+          APP_NODE_ENV: 'production',
+          APP_PORT: 'postgres://localhost:5432/db',
+          LOG_LEVEL: 'info',
+        } as unknown as Parameters<typeof assertNoDevInfraValues>[0],
+        [fakeInfra],
+      ),
+    ).toThrow(/APP_PORT/);
+  });
+
+  it('throws in staging when a registered variable points at 127.0.0.1', () => {
+    expect(() =>
+      assertNoDevInfraValues(
+        {
+          APP_NODE_ENV: 'staging',
+          APP_PORT: 'redis://127.0.0.1:6379',
+          LOG_LEVEL: 'info',
+        } as unknown as Parameters<typeof assertNoDevInfraValues>[0],
+        [fakeInfra],
+      ),
+    ).toThrow(/staging/);
+  });
+
+  it('passes in production when no registered variable matches a dev pattern', () => {
+    expect(() =>
+      assertNoDevInfraValues(
+        {
+          APP_NODE_ENV: 'production',
+          APP_PORT: 'postgres://prod-db.internal:5432/parks',
+          LOG_LEVEL: 'info',
+        } as unknown as Parameters<typeof assertNoDevInfraValues>[0],
+        [fakeInfra],
+      ),
+    ).not.toThrow();
+  });
+
+  it('passes with the default empty registry', () => {
+    expect(() =>
+      assertNoDevInfraValues({
         APP_NODE_ENV: 'production',
         APP_PORT: 8080,
         LOG_LEVEL: 'info',

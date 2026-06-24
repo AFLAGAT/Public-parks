@@ -34,6 +34,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 - [Initialize production-oriented project structure](phase-02.md#initialize-production-oriented-project-structure) — NestJS skeleton with the ten domain module folders, strict TS, Vitest, `/v1` global prefix; build + smoke test green.
 - [Create configuration management layer](phase-02.md#create-configuration-management-layer) — `@nestjs/config` + Zod, section-composed schema, `AppConfigService` typed accessor, fail-fast on missing/malformed env at startup.
 - [Set up secrets management](phase-02.md#set-up-secrets-management) — platform-agnostic policy logged in DECISIONS.md, `SECRET_REGISTRY` + `assertNoDevSecretPlaceholders` guard refuses prod/staging boot on known placeholder values.
+- [Create fully separated environments](phase-02.md#create-fully-separated-environments) — `Environment separation` decision logged, `DEV_INFRA_REGISTRY` + `assertNoDevInfraValues` guard refuses prod/staging boot when a connection string matches localhost/dev patterns.
 
 ## Phase 3 — Database Design
 
