@@ -14,7 +14,17 @@ const logEnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
 
-export const envSchema = appEnvSchema.merge(logEnvSchema);
+const dbEnvSchema = z.object({
+  DB_PRIMARY_URL: z
+    .string()
+    .min(1, 'DB_PRIMARY_URL is required')
+    .refine(
+      (value) => value.startsWith('postgres://') || value.startsWith('postgresql://'),
+      { message: 'DB_PRIMARY_URL must be a postgres:// or postgresql:// connection string' },
+    ),
+});
+
+export const envSchema = appEnvSchema.merge(logEnvSchema).merge(dbEnvSchema);
 export type Env = z.infer<typeof envSchema>;
 
 /**
@@ -32,7 +42,21 @@ export interface SecretRegistryEntry {
   readonly devPlaceholders: readonly string[];
 }
 
-export const SECRET_REGISTRY: readonly SecretRegistryEntry[] = [];
+export const SECRET_REGISTRY: readonly SecretRegistryEntry[] = [
+  {
+    // Catch a copy-pasted local-dev DB URL landing in staging/production.
+    // Both the project's docker-compose URL and the Postgres default URL are
+    // listed; matching is exact-string. The DEV_INFRA_REGISTRY entry below
+    // catches any `localhost`-bearing URL more generally; this entry adds a
+    // belt to the suspenders.
+    key: 'DB_PRIMARY_URL',
+    devPlaceholders: [
+      'postgres://parks:parks_dev@localhost:5432/parks_dev',
+      'postgresql://parks:parks_dev@localhost:5432/parks_dev',
+      'postgres://postgres:postgres@localhost:5432/postgres',
+    ],
+  },
+];
 
 export function assertNoDevSecretPlaceholders(
   env: Env,
@@ -73,7 +97,12 @@ export interface DevInfraRegistryEntry {
   readonly patterns: readonly RegExp[];
 }
 
-export const DEV_INFRA_REGISTRY: readonly DevInfraRegistryEntry[] = [];
+export const DEV_INFRA_REGISTRY: readonly DevInfraRegistryEntry[] = [
+  {
+    key: 'DB_PRIMARY_URL',
+    patterns: [/localhost/i, /127\.0\.0\.1/, /host\.docker\.internal/i],
+  },
+];
 
 export function assertNoDevInfraValues(
   env: Env,

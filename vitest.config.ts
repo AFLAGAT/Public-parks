@@ -8,6 +8,7 @@ export default defineConfig({
     passWithNoTests: false,
     env: {
       APP_NODE_ENV: 'test',
+      DB_PRIMARY_URL: 'postgres://parks:parks_dev@localhost:5432/parks_test',
     },
   },
 });

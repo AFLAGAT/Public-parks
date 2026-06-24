@@ -35,6 +35,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 - [Create configuration management layer](phase-02.md#create-configuration-management-layer) — `@nestjs/config` + Zod, section-composed schema, `AppConfigService` typed accessor, fail-fast on missing/malformed env at startup.
 - [Set up secrets management](phase-02.md#set-up-secrets-management) — platform-agnostic policy logged in DECISIONS.md, `SECRET_REGISTRY` + `assertNoDevSecretPlaceholders` guard refuses prod/staging boot on known placeholder values.
 - [Create fully separated environments](phase-02.md#create-fully-separated-environments) — `Environment separation` decision logged, `DEV_INFRA_REGISTRY` + `assertNoDevInfraValues` guard refuses prod/staging boot when a connection string matches localhost/dev patterns.
+- [Provision PostgreSQL with geospatial support](phase-02.md#provision-postgresql-with-geospatial-support) — `postgis/postgis:16-3.4` via Docker Compose for local dev, `DB_PRIMARY_URL` Zod-validated + registered in both registries, `DatabaseConfigService` accessor.
 
 ## Phase 3 — Database Design
 

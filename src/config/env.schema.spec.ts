@@ -3,20 +3,35 @@ import {
   assertNoDevInfraValues,
   assertNoDevSecretPlaceholders,
   DevInfraRegistryEntry,
+  Env,
   SecretRegistryEntry,
   validateEnv,
 } from './env.schema';
 
+const VALID_DB_URL = 'postgres://parks:parks_dev@localhost:5432/parks_dev';
+
+const baseEnv: Env = {
+  APP_NODE_ENV: 'development',
+  APP_PORT: 3000,
+  LOG_LEVEL: 'info',
+  DB_PRIMARY_URL: VALID_DB_URL,
+};
+
 describe('validateEnv', () => {
   it('parses a minimal valid env and applies defaults', () => {
-    const env = validateEnv({ APP_NODE_ENV: 'development' });
+    const env = validateEnv({ APP_NODE_ENV: 'development', DB_PRIMARY_URL: VALID_DB_URL });
     expect(env.APP_NODE_ENV).toBe('development');
     expect(env.APP_PORT).toBe(3000);
     expect(env.LOG_LEVEL).toBe('info');
+    expect(env.DB_PRIMARY_URL).toBe(VALID_DB_URL);
   });
 
   it('coerces APP_PORT from string', () => {
-    const env = validateEnv({ APP_NODE_ENV: 'production', APP_PORT: '8080' });
+    const env = validateEnv({
+      APP_NODE_ENV: 'development',
+      APP_PORT: '8080',
+      DB_PRIMARY_URL: VALID_DB_URL,
+    });
     expect(env.APP_PORT).toBe(8080);
   });
 
@@ -25,31 +40,61 @@ describe('validateEnv', () => {
   });
 
   it('rejects an unknown APP_NODE_ENV value', () => {
-    expect(() => validateEnv({ APP_NODE_ENV: 'qa' })).toThrow(/APP_NODE_ENV/);
+    expect(() => validateEnv({ APP_NODE_ENV: 'qa', DB_PRIMARY_URL: VALID_DB_URL })).toThrow(
+      /APP_NODE_ENV/,
+    );
   });
 
   it('rejects a non-numeric APP_PORT', () => {
-    expect(() => validateEnv({ APP_NODE_ENV: 'development', APP_PORT: 'not-a-port' })).toThrow(
-      /APP_PORT/,
-    );
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        APP_PORT: 'not-a-port',
+        DB_PRIMARY_URL: VALID_DB_URL,
+      }),
+    ).toThrow(/APP_PORT/);
   });
 
   it('rejects an out-of-range APP_PORT', () => {
-    expect(() => validateEnv({ APP_NODE_ENV: 'development', APP_PORT: '70000' })).toThrow(
-      /APP_PORT/,
-    );
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        APP_PORT: '70000',
+        DB_PRIMARY_URL: VALID_DB_URL,
+      }),
+    ).toThrow(/APP_PORT/);
   });
 
   it('rejects an unknown LOG_LEVEL', () => {
-    expect(() => validateEnv({ APP_NODE_ENV: 'development', LOG_LEVEL: 'verbose' })).toThrow(
-      /LOG_LEVEL/,
-    );
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        LOG_LEVEL: 'verbose',
+        DB_PRIMARY_URL: VALID_DB_URL,
+      }),
+    ).toThrow(/LOG_LEVEL/);
+  });
+
+  it('rejects a missing DB_PRIMARY_URL', () => {
+    expect(() => validateEnv({ APP_NODE_ENV: 'development' })).toThrow(/DB_PRIMARY_URL/);
+  });
+
+  it('rejects a non-postgres DB_PRIMARY_URL', () => {
+    expect(() =>
+      validateEnv({ APP_NODE_ENV: 'development', DB_PRIMARY_URL: 'mysql://localhost/db' }),
+    ).toThrow(/DB_PRIMARY_URL/);
+  });
+
+  it('accepts the postgresql:// scheme', () => {
+    const env = validateEnv({
+      APP_NODE_ENV: 'development',
+      DB_PRIMARY_URL: 'postgresql://parks:parks_dev@localhost:5432/parks_dev',
+    });
+    expect(env.DB_PRIMARY_URL.startsWith('postgresql://')).toBe(true);
   });
 });
 
 describe('assertNoDevSecretPlaceholders', () => {
-  // The real registry is empty; tests pass a synthetic registry that pretends
-  // APP_PORT is a secret with known placeholders, just to exercise the guard.
   const fakeSecret: SecretRegistryEntry = {
     key: 'APP_PORT',
     devPlaceholders: ['changeme', '0000'],
@@ -58,7 +103,7 @@ describe('assertNoDevSecretPlaceholders', () => {
   it('skips the check in development', () => {
     expect(() =>
       assertNoDevSecretPlaceholders(
-        { APP_NODE_ENV: 'development', APP_PORT: 3000, LOG_LEVEL: 'info' },
+        { ...baseEnv, APP_NODE_ENV: 'development' },
         [{ ...fakeSecret, devPlaceholders: ['3000'] }],
       ),
     ).not.toThrow();
@@ -67,7 +112,7 @@ describe('assertNoDevSecretPlaceholders', () => {
   it('skips the check in test', () => {
     expect(() =>
       assertNoDevSecretPlaceholders(
-        { APP_NODE_ENV: 'test', APP_PORT: 3000, LOG_LEVEL: 'info' },
+        { ...baseEnv, APP_NODE_ENV: 'test' },
         [{ ...fakeSecret, devPlaceholders: ['3000'] }],
       ),
     ).not.toThrow();
@@ -76,11 +121,7 @@ describe('assertNoDevSecretPlaceholders', () => {
   it('throws in production when a registered secret holds a placeholder', () => {
     expect(() =>
       assertNoDevSecretPlaceholders(
-        // Cast: APP_PORT is a number; we simulate a string-typed secret holding
-        // its placeholder, which is the real shape (DB urls, JWT keys, etc.).
-        { APP_NODE_ENV: 'production', APP_PORT: 'changeme', LOG_LEVEL: 'info' } as unknown as Parameters<
-          typeof assertNoDevSecretPlaceholders
-        >[0],
+        { ...baseEnv, APP_NODE_ENV: 'production', APP_PORT: 'changeme' as unknown as number },
         [fakeSecret],
       ),
     ).toThrow(/APP_PORT/);
@@ -89,9 +130,7 @@ describe('assertNoDevSecretPlaceholders', () => {
   it('throws in staging the same way', () => {
     expect(() =>
       assertNoDevSecretPlaceholders(
-        { APP_NODE_ENV: 'staging', APP_PORT: 'changeme', LOG_LEVEL: 'info' } as unknown as Parameters<
-          typeof assertNoDevSecretPlaceholders
-        >[0],
+        { ...baseEnv, APP_NODE_ENV: 'staging', APP_PORT: 'changeme' as unknown as number },
         [fakeSecret],
       ),
     ).toThrow(/staging/);
@@ -100,26 +139,24 @@ describe('assertNoDevSecretPlaceholders', () => {
   it('passes in production when no registered secret matches a placeholder', () => {
     expect(() =>
       assertNoDevSecretPlaceholders(
-        { APP_NODE_ENV: 'production', APP_PORT: 8080, LOG_LEVEL: 'info' },
+        { ...baseEnv, APP_NODE_ENV: 'production', APP_PORT: 8080 },
         [fakeSecret],
       ),
     ).not.toThrow();
   });
 
-  it('passes with the default empty registry', () => {
+  it('catches a copy-pasted dev DB_PRIMARY_URL in production via the real registry', () => {
     expect(() =>
       assertNoDevSecretPlaceholders({
+        ...baseEnv,
         APP_NODE_ENV: 'production',
-        APP_PORT: 8080,
-        LOG_LEVEL: 'info',
+        DB_PRIMARY_URL: 'postgres://parks:parks_dev@localhost:5432/parks_dev',
       }),
-    ).not.toThrow();
+    ).toThrow(/DB_PRIMARY_URL/);
   });
 });
 
 describe('assertNoDevInfraValues', () => {
-  // Synthetic registry pretending APP_PORT (a string-typed value, in this
-  // mock) is a connection string that must not point at localhost.
   const fakeInfra: DevInfraRegistryEntry = {
     key: 'APP_PORT',
     patterns: [/localhost/i, /127\.0\.0\.1/, /host\.docker\.internal/i],
@@ -128,9 +165,11 @@ describe('assertNoDevInfraValues', () => {
   it('skips the check in development', () => {
     expect(() =>
       assertNoDevInfraValues(
-        { APP_NODE_ENV: 'development', APP_PORT: 'postgres://localhost/db' } as unknown as Parameters<
-          typeof assertNoDevInfraValues
-        >[0],
+        {
+          ...baseEnv,
+          APP_NODE_ENV: 'development',
+          APP_PORT: 'postgres://localhost/db' as unknown as number,
+        },
         [fakeInfra],
       ),
     ).not.toThrow();
@@ -140,10 +179,11 @@ describe('assertNoDevInfraValues', () => {
     expect(() =>
       assertNoDevInfraValues(
         {
+          ...baseEnv,
           APP_NODE_ENV: 'production',
-          APP_PORT: 'postgres://localhost:5432/db',
-          LOG_LEVEL: 'info',
-        } as unknown as Parameters<typeof assertNoDevInfraValues>[0],
+          APP_PORT: 'postgres://localhost:5432/db' as unknown as number,
+          DB_PRIMARY_URL: 'postgres://prod-db.internal:5432/parks',
+        },
         [fakeInfra],
       ),
     ).toThrow(/APP_PORT/);
@@ -153,10 +193,11 @@ describe('assertNoDevInfraValues', () => {
     expect(() =>
       assertNoDevInfraValues(
         {
+          ...baseEnv,
           APP_NODE_ENV: 'staging',
-          APP_PORT: 'redis://127.0.0.1:6379',
-          LOG_LEVEL: 'info',
-        } as unknown as Parameters<typeof assertNoDevInfraValues>[0],
+          APP_PORT: 'redis://127.0.0.1:6379' as unknown as number,
+          DB_PRIMARY_URL: 'postgres://prod-db.internal:5432/parks',
+        },
         [fakeInfra],
       ),
     ).toThrow(/staging/);
@@ -166,22 +207,33 @@ describe('assertNoDevInfraValues', () => {
     expect(() =>
       assertNoDevInfraValues(
         {
+          ...baseEnv,
           APP_NODE_ENV: 'production',
-          APP_PORT: 'postgres://prod-db.internal:5432/parks',
-          LOG_LEVEL: 'info',
-        } as unknown as Parameters<typeof assertNoDevInfraValues>[0],
+          APP_PORT: 'postgres://prod-db.internal:5432/parks' as unknown as number,
+          DB_PRIMARY_URL: 'postgres://prod-db.internal:5432/parks',
+        },
         [fakeInfra],
       ),
     ).not.toThrow();
   });
 
-  it('passes with the default empty registry', () => {
+  it('catches a localhost DB_PRIMARY_URL in production via the real registry', () => {
     expect(() =>
       assertNoDevInfraValues({
+        ...baseEnv,
         APP_NODE_ENV: 'production',
-        APP_PORT: 8080,
-        LOG_LEVEL: 'info',
+        DB_PRIMARY_URL: 'postgres://user:pass@localhost:5432/whatever',
       }),
-    ).not.toThrow();
+    ).toThrow(/DB_PRIMARY_URL/);
+  });
+
+  it('catches a 127.0.0.1 DB_PRIMARY_URL in staging via the real registry', () => {
+    expect(() =>
+      assertNoDevInfraValues({
+        ...baseEnv,
+        APP_NODE_ENV: 'staging',
+        DB_PRIMARY_URL: 'postgres://user:pass@127.0.0.1:5432/whatever',
+      }),
+    ).toThrow(/DB_PRIMARY_URL/);
   });
 });

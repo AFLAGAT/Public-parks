@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { AppConfigService } from './app-config.service';
+import { DatabaseConfigService } from './database-config.service';
 import { validateEnv } from './env.schema';
 
 @Global()
@@ -12,7 +13,7 @@ import { validateEnv } from './env.schema';
       validate: validateEnv,
     }),
   ],
-  providers: [AppConfigService],
-  exports: [AppConfigService],
+  providers: [AppConfigService, DatabaseConfigService],
+  exports: [AppConfigService, DatabaseConfigService],
 })
 export class ConfigModule {}

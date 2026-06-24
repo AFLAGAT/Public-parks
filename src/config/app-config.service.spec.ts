@@ -13,7 +13,12 @@ function makeConfig(env: Env): ConfigService<Env, true> {
 describe('AppConfigService', () => {
   it('exposes typed getters that proxy ConfigService', () => {
     const service = new AppConfigService(
-      makeConfig({ APP_NODE_ENV: 'production', APP_PORT: 8080, LOG_LEVEL: 'warn' }),
+      makeConfig({
+        APP_NODE_ENV: 'production',
+        APP_PORT: 8080,
+        LOG_LEVEL: 'warn',
+        DB_PRIMARY_URL: 'postgres://prod-db.internal:5432/parks',
+      }),
     );
 
     expect(service.nodeEnv).toBe('production');
@@ -25,7 +30,12 @@ describe('AppConfigService', () => {
 
   it('reports isTest when APP_NODE_ENV is test', () => {
     const service = new AppConfigService(
-      makeConfig({ APP_NODE_ENV: 'test', APP_PORT: 3000, LOG_LEVEL: 'info' }),
+      makeConfig({
+        APP_NODE_ENV: 'test',
+        APP_PORT: 3000,
+        LOG_LEVEL: 'info',
+        DB_PRIMARY_URL: 'postgres://parks:parks_dev@localhost:5432/parks_test',
+      }),
     );
 
     expect(service.isProduction).toBe(false);

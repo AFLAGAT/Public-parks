@@ -121,7 +121,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Security considerations:** Production data must not be copied into lower environments without masking and explicit approval.
   - **Dependencies:** Infrastructure accounts/projects, secrets manager, database provisioning.
 
-- [ ] **Provision PostgreSQL with geospatial support.** **Priority:** Critical. **Purpose:** Support transactional integrity and efficient geolocation facility search.
+- [x] **Provision PostgreSQL with geospatial support.** **Priority:** Critical. **Purpose:** Support transactional integrity and efficient geolocation facility search.
   - **Performance considerations:** Use PostGIS or equivalent spatial indexing instead of naive latitude/longitude filtering.
   - **Dependencies:** Database hosting, migration tooling, geospatial extension support.
 

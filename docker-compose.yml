@@ -1,0 +1,31 @@
+# Local-development infrastructure for the Public Parks backend.
+#
+# Only used for `APP_NODE_ENV=development` and `APP_NODE_ENV=test`. Staging and
+# production run against the deployment platform's managed Postgres — see
+# DECISIONS.md → "PostgreSQL + PostGIS provisioning" and "Environment
+# separation". Never point a staging or production deploy at this stack.
+
+services:
+  postgres:
+    # PostGIS-enabled Postgres 16. Matches the spatial extension required by
+    # facility geolocation search (see DECISIONS.md).
+    image: postgis/postgis:16-3.4
+    container_name: parks-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: parks_dev
+      POSTGRES_USER: parks
+      POSTGRES_PASSWORD: parks_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - parks-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parks -d parks_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  parks-postgres-data:
+    name: parks-postgres-data
