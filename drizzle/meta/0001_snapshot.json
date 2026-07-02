@@ -1,0 +1,143 @@
+{
+  "id": "cd3c41a8-110f-4ac4-bdb6-40ff5f13fae4",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(254)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone_number_verified_at": {
+          "name": "phone_number_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_verified_at": {
+          "name": "email_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uidx_users__phone_number": {
+          "name": "uidx_users__phone_number",
+          "columns": [
+            {
+              "expression": "phone_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "uidx_users__email": {
+          "name": "uidx_users__email",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "pk_users": {
+          "name": "pk_users",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_users__identity_channel_present": {
+          "name": "chk_users__identity_channel_present",
+          "value": "\"users\".\"phone_number\" is not null or \"users\".\"email\" is not null"
+        },
+        "chk_users__phone_number_e164": {
+          "name": "chk_users__phone_number_e164",
+          "value": "\"users\".\"phone_number\" is null or \"users\".\"phone_number\" ~ '^\\+[1-9][0-9]{7,14}$'"
+        },
+        "chk_users__email_normalized": {
+          "name": "chk_users__email_normalized",
+          "value": "\"users\".\"email\" is null or (\"users\".\"email\" = lower(btrim(\"users\".\"email\")) and char_length(\"users\".\"email\") between 3 and 254 and position('@' in \"users\".\"email\") > 1)"
+        },
+        "chk_users__phone_verification_has_phone_number": {
+          "name": "chk_users__phone_verification_has_phone_number",
+          "value": "\"users\".\"phone_number_verified_at\" is null or \"users\".\"phone_number\" is not null"
+        },
+        "chk_users__email_verification_has_email": {
+          "name": "chk_users__email_verification_has_email",
+          "value": "\"users\".\"email_verified_at\" is null or \"users\".\"email\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

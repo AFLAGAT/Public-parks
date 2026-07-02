@@ -8,6 +8,13 @@
       "when": 1728000000000,
       "tag": "0000_enable_postgis",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782978268179,
+      "tag": "0001_create_users",
+      "breakpoints": true
     }
   ]
 }

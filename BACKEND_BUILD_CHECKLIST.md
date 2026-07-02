@@ -184,8 +184,9 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 
 ## Phase 3: Database Design
 
-- [ ] **Model users with client-neutral identity.** **Priority:** Critical. **Purpose:** Represent residents, staff, and admins without duplicating identity records across clients.
+- [x] **Model users with client-neutral identity.** **Priority:** Critical. **Purpose:** Represent residents, staff, and admins without duplicating identity records across clients.
   - **Security considerations:** Store only hashed passwords or OTP verification state; never store OTPs or reset tokens in plaintext.
+  - **Notes:** Added the `users` table and generated `0001_create_users.sql`: UUID primary key; optional normalized E.164 phone/email identity channels with unique indexes; channel-verification timestamps; `is_active`; and required timestamps. Database checks require at least one identity channel, enforce normalized identifiers, and prevent a channel from being marked verified without its identifier. Roles, client types, passwords, OTPs, and reset tokens are intentionally absent so one identity can serve resident, staff, and admin clients without storing plaintext credentials. Failure-mode tests run against disposable PostgreSQL and prove duplicate identifiers plus malformed/inconsistent identity states are rejected by named constraints. Also corrected the existing migration smoke test to compare PostgreSQL's applied hash with SHA-256 of the SQL file because Drizzle's journal does not store hashes. Verification: 122/122 unit tests, 17/17 integration tests, typecheck, lint, and production build pass.
 
 - [ ] **Model roles and permissions explicitly.** **Priority:** Critical. **Purpose:** Support strict admin, staff, finance, auditor, and resident access boundaries.
   - **Security considerations:** Permission assignments need audit logs and should avoid broad super-admin use for routine operations.

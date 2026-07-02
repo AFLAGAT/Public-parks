@@ -8,8 +8,8 @@
  *   the local `drizzle/meta/_journal.json` file
  * - PostgreSQL's `drizzle.__drizzle_migrations` table contains the applied
  *   migration with matching hash and timestamp
- * - The applied migration hash/timestamp is compared against the local
- *   migration reader, not just the `_journal.json` file alone
+ * - The applied migration hash is compared with SHA-256 of the local SQL file,
+ *   not inferred from the journal (which does not store hashes)
  * - Basic query execution
  *
  * Uses the project's Drizzle ORM client wrapped around a pg.Pool (same
@@ -25,6 +25,7 @@ import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { createHash } from 'crypto';
 
 const DB_URL = process.env.DB_PRIMARY_URL;
 
@@ -156,26 +157,10 @@ describe('Drizzle + PostGIS integration', () => {
     const row = result.rows[0] as { hash: string };
     expect(row.hash).toBeTruthy();
 
-    // Read the migration file entries from the meta folder
-    const journalPath = resolve('drizzle/meta/_journal.json');
-    const journal = JSON.parse(readFileSync(journalPath, 'utf-8')) as {
-      entries: Array<{ tag: string; hash: string; when?: number }>;
-    };
-    const firstEntry = journal.entries.find(
-      (e: { tag: string }) => e.tag === '0000_enable_postgis',
-    );
-    expect(firstEntry).toBeDefined();
-
-    // Drizzle's hash in the journal is a SHA-256 of the migration SQL content.
-    // The hash stored in __drizzle_migrations should match the journal hash.
-    // Without importing Drizzle's internal hashing function, we verify that
-    // both hashes are non-empty, non-trivial strings.
-    expect(firstEntry!.hash).toBeTruthy();
-    expect(typeof firstEntry!.hash).toBe('string');
-    expect(firstEntry!.hash.length).toBeGreaterThan(10);
-
-    // The database hash should match the journal hash for this migration
-    expect(row.hash).toBe(firstEntry!.hash);
+    // Drizzle stores SHA-256(file content) in __drizzle_migrations. The local
+    // journal tracks order and tags, but does not contain migration hashes.
+    const expectedHash = createHash('sha256').update(migrationSql).digest('hex');
+    expect(row.hash).toBe(expectedHash);
 
     // Verify the SQL file is non-trivial (has actual content)
     expect(migrationSql.length).toBeGreaterThan(10);

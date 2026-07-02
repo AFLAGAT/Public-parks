@@ -54,7 +54,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 
 ## Phase 3 — Database Design
 
-- _(no entries yet)_
+- [Model users with client-neutral identity](phase-03.md#model-users-with-client-neutral-identity) — shared UUID identity with normalized unique phone/email channels, verification-state constraints, no embedded roles/clients/credentials, and real PostgreSQL failure-mode coverage.
 
 ## Phase 4 — Authentication and Security
 
