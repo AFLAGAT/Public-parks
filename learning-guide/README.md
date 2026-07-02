@@ -50,6 +50,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 - [Create standard request validation layer](phase-02.md#create-standard-request-validation-layer) — global Zod pipe + exception filter, createZodDto, strict unknown-field rejection, canonical VALIDATION_FAILED envelope.
 - [Create structured logging foundation](phase-02.md#create-structured-logging-foundation) — global Pino JSON logging, safe correlation-ID propagation, minimal HTTP metadata, status-aware levels, typed operational context, and logger-level sensitive-field redaction.
 - [Create centralized error handling](phase-02.md#create-centralized-error-handling) — single global `AllExceptionsFilter` + stable `ErrorCode` taxonomy + `ApplicationException` base rendering the canonical envelope for validation/application/framework/unknown failures; superseded and removed the per-exception validation filter.
+- [Set up authentication middleware skeleton](phase-02.md#set-up-authentication-middleware-skeleton) — global default-deny `AuthenticationGuard`, explicit `@Public()` allowlist, server-owned authenticated-actor request context, and critical failure-mode coverage for anonymous, arbitrary-bearer, and request-property spoofing attempts.
 
 ## Phase 3 — Database Design
 
