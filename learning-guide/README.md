@@ -44,6 +44,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 
 - [Set up testing framework and test database workflow](phase-02.md#set-up-testing-framework-and-test-database-workflow) — test-suite separation (unit vs integration), disposable Docker Compose PostGIS database, Node orchestrator with Docker lifecycle, database safety guard, integration smoke test against real PostGIS, fixture workflow documentation, lint+typecheck coverage for test files.
 - [Testing framework — remediation (Phase 2 verification)](phase-02.md#testing-framework--remediation-phase-2-verification) — orchestration hardening (no shell interpolation, port validation, unique Compose project, signal handling, idempotent teardown), database guard hardening (URL constructor, 0.0.0.0 rejection, spoofed-name rejection, credential redaction), guard test expansion (27 tests), Vitest setup file, Drizzle client smoke test with `__drizzle_migrations` hash verification, tsconfig/build boundaries, fixture documentation corrections (PoolClient transaction isolation, DDL transactional correction).
+- [Create standard request validation layer](phase-02.md#create-standard-request-validation-layer) — global Zod pipe + exception filter, createZodDto, strict unknown-field rejection, canonical VALIDATION_FAILED envelope.
 
 ## Phase 3 — Database Design
 
