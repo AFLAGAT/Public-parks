@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 import { Test } from '@nestjs/testing';
 import { AppModule } from './app.module';
+import { LoggingContextService } from './common/logging/logging-context.service';
 import { DRIZZLE_CLIENT, DRIZZLE_POOL } from './database/drizzle.module';
 
 describe('AppModule', () => {
@@ -16,6 +17,7 @@ describe('AppModule', () => {
       .compile();
 
     expect(moduleRef.get(AppModule)).toBeDefined();
+    expect(moduleRef.get(LoggingContextService)).toBeDefined();
     await moduleRef.close();
   });
 });

@@ -1,4 +1,5 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
+import { getRequestCorrelationId } from '../logging/request-correlation.util';
 import { RequestValidationException } from './request-validation.exception';
 
 /**
@@ -10,23 +11,18 @@ interface HttpResponseLike {
   status(code: number): { json(body: unknown): void };
 }
 
-/**
- * Temporary correlation id until the structured-logging item wires a real
- * per-request id into the envelope. Referenced here so the field is present and
- * clients can rely on its shape from day one.
- */
-export const CORRELATION_ID_PLACEHOLDER = 'not-yet-wired';
-
 @Catch(RequestValidationException)
 export class ValidationExceptionFilter implements ExceptionFilter {
   catch(exception: RequestValidationException, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<HttpResponseLike>();
+    const http = host.switchToHttp();
+    const request = http.getRequest<{ readonly id?: unknown }>();
+    const response = http.getResponse<HttpResponseLike>();
     response.status(HttpStatus.BAD_REQUEST).json({
       error: {
         code: exception.code,
         message: exception.message,
         details: exception.details,
-        correlationId: CORRELATION_ID_PLACEHOLDER,
+        correlationId: getRequestCorrelationId(request),
       },
     });
   }

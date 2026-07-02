@@ -5,6 +5,8 @@ import { Body, Controller, Post } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { z } from 'zod';
+import { LoggingModule } from '../logging/logging.module';
+import { CORRELATION_ID_HEADER } from '../logging/request-correlation.util';
 import { ValidationModule } from './validation.module';
 import { createZodDto } from './create-zod-dto.util';
 
@@ -32,12 +34,13 @@ Reflect.defineMetadata(
 );
 
 describe('validation layer (e2e)', () => {
+  const correlationId = '01975db7-3a5f-7b8c-9d10-111213141516';
   let app: INestApplication;
   let baseUrl: string;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [ValidationModule],
+      imports: [LoggingModule, ValidationModule],
       controllers: [FixtureThingsController],
     }).compile();
     app = moduleRef.createNestApplication();
@@ -48,7 +51,9 @@ describe('validation layer (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('accepts valid input and returns coerced data', async () => {
@@ -64,14 +69,18 @@ describe('validation layer (e2e)', () => {
   it('rejects an unknown field with the canonical 400 envelope', async () => {
     const res = await fetch(`${baseUrl}/things`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        [CORRELATION_ID_HEADER]: correlationId,
+      },
       body: JSON.stringify({ name: 'court a', quantity: 2, sneaky: true }),
     });
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: { code: string; details: unknown; correlationId: string } };
     expect(body.error.code).toBe('VALIDATION_FAILED');
     expect(body.error).toHaveProperty('details');
-    expect(body.error).toHaveProperty('correlationId');
+    expect(body.error.correlationId).toBe(correlationId);
+    expect(res.headers.get(CORRELATION_ID_HEADER)).toBe(correlationId);
   });
 
   it('rejects an invalid field value with 400', async () => {
