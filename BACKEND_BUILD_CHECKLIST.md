@@ -364,6 +364,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 
 - [ ] **Build facility discovery APIs.** **Priority:** High. **Purpose:** Support GPS-based nearby search, text search, filtering by facility type, amenities, availability hints, and public facility details.
   - **Performance considerations:** Use geospatial indexes, bounded result sets, pagination, and cache public facility metadata separately from live availability.
+  - **Notes:** The active vertical slice now includes the public discovery core: `GET /v1/facilities` supports bounded cursor pagination, text search, facility-type filtering, and all-or-none `nearLat`/`nearLng`/`radiusMeters` queries backed by `ST_DWithin` plus distance ordering; `GET /v1/facilities/{facilityId}` returns approved public detail. Results exclude inactive facilities and inactive types, cursors are bound to the exact filter set, and the routes are covered by schema, service, HTTP, and real PostGIS tests. This broader item intentionally remains unchecked until amenities and live availability hints have supporting domain models and are added without stubbing.
 
 - [ ] **Build slot availability APIs.** **Priority:** High. **Purpose:** Let residents query available courts and time ranges accurately before booking.
   - **Performance considerations:** Optimize for repeated reads by facility/date/sport while avoiding stale confirmed or held slot data.

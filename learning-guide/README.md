@@ -64,7 +64,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 
 ## Phase 5 — APIs
 
-- _(no entries yet)_
+- [Build facility discovery API core](phase-05.md#build-facility-discovery-api-core) — public text/type/nearby discovery and detail routes with strict validation, PostGIS radius ordering, filter-bound cursor pagination, and inactive-record hiding.
 
 ## Phase 6 — Business Logic
 

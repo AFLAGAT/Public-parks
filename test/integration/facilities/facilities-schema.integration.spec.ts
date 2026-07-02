@@ -8,6 +8,7 @@ import {
   facilityTypes,
   schema,
 } from '../../../src/database/drizzle.schema';
+import { FacilitiesRepository } from '../../../src/facilities/facilities.repository';
 
 interface PostgreSqlError extends Error {
   readonly code: string;
@@ -45,6 +46,7 @@ describe('facilities schema integration', () => {
   const databaseUrl = process.env.DB_PRIMARY_URL;
   let pool: Pool;
   let db: NodePgDatabase<typeof schema>;
+  let facilitiesRepository: FacilitiesRepository;
 
   beforeAll(() => {
     if (!databaseUrl) {
@@ -52,6 +54,7 @@ describe('facilities schema integration', () => {
     }
     pool = new Pool({ connectionString: databaseUrl, max: 1 });
     db = drizzle(pool, { schema });
+    facilitiesRepository = new FacilitiesRepository(db);
   });
 
   beforeEach(async () => {
@@ -168,6 +171,178 @@ describe('facilities schema integration', () => {
     const indexDefinition = (indexResult.rows[0] as { indexdef: string }).indexdef.toLowerCase();
     expect(indexDefinition).toContain('using gist');
     expect(indexDefinition).toContain('(location)::geography');
+  });
+
+  it('lists only active public records using text and facility-type filters', async () => {
+    const [poolType] = await db
+      .insert(facilityTypes)
+      .values({
+        code: 'public_pool',
+        name: 'Public Pool',
+        operationalClassification: 'entrance_based',
+      })
+      .returning();
+    const [parkType] = await db
+      .insert(facilityTypes)
+      .values({
+        code: 'public_park',
+        name: 'Public Park',
+        operationalClassification: 'entrance_based',
+      })
+      .returning();
+
+    await db.insert(facilities).values([
+      {
+        facilityTypeId: poolType.id,
+        name: 'Arada Family Pool',
+        description: 'Indoor swimming facility',
+        address: 'Arada, Addis Ababa',
+        location: { x: 38.7578, y: 9.0301 },
+      },
+      {
+        facilityTypeId: poolType.id,
+        name: 'Closed Pool',
+        address: 'Bole, Addis Ababa',
+        location: { x: 38.78, y: 9.01 },
+        isActive: false,
+      },
+      {
+        facilityTypeId: parkType.id,
+        name: 'Arada Public Park',
+        address: 'Arada, Addis Ababa',
+        location: { x: 38.76, y: 9.03 },
+      },
+    ]);
+
+    const rows = await facilitiesRepository.listFacilities({
+      pageSize: 10,
+      search: 'arada',
+      facilityType: 'public_pool',
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      name: 'Arada Family Pool',
+      facilityTypeCode: 'public_pool',
+      operationalClassification: 'entrance_based',
+      distanceMeters: null,
+    });
+  });
+
+  it('uses distance ordering, radius bounds, and exact keyset continuation', async () => {
+    const [parkType] = await db
+      .insert(facilityTypes)
+      .values({
+        code: 'public_park',
+        name: 'Public Park',
+        operationalClassification: 'entrance_based',
+      })
+      .returning();
+    await db.insert(facilities).values([
+      {
+        facilityTypeId: parkType.id,
+        name: 'At Search Point',
+        address: 'Central Addis Ababa',
+        location: { x: 38.7578, y: 9.0301 },
+      },
+      {
+        facilityTypeId: parkType.id,
+        name: 'A Short Walk Away',
+        address: 'Central Addis Ababa',
+        location: { x: 38.7588, y: 9.0301 },
+      },
+      {
+        facilityTypeId: parkType.id,
+        name: 'Outside Radius',
+        address: 'Northern Addis Ababa',
+        location: { x: 38.764, y: 9.1 },
+      },
+    ]);
+
+    const firstRows = await facilitiesRepository.listFacilities({
+      pageSize: 1,
+      nearLat: 9.0301,
+      nearLng: 38.7578,
+      radiusMeters: 2_000,
+    });
+    expect(firstRows.map((row) => row.name)).toEqual([
+      'At Search Point',
+      'A Short Walk Away',
+    ]);
+    expect(firstRows[0]?.distanceMeters).toBeCloseTo(0, 5);
+    expect(firstRows[1]?.distanceMeters).toBeGreaterThan(0);
+
+    const firstRow = firstRows[0];
+    if (!firstRow || firstRow.distanceMeters === null) {
+      throw new Error('Expected a nearby facility row with a distance.');
+    }
+    const nextRows = await facilitiesRepository.listFacilities({
+      pageSize: 10,
+      nearLat: 9.0301,
+      nearLng: 38.7578,
+      radiusMeters: 2_000,
+      decodedCursor: {
+        mode: 'nearby',
+        id: firstRow.id,
+        distanceMeters: firstRow.distanceMeters,
+        queryKey: 'integration-test',
+      },
+    });
+    expect(nextRows.map((row) => row.name)).toEqual(['A Short Walk Away']);
+  });
+
+  it('returns only active facility details with an active public type', async () => {
+    const [activeType] = await db
+      .insert(facilityTypes)
+      .values({
+        code: 'public_park',
+        name: 'Public Park',
+        operationalClassification: 'entrance_based',
+      })
+      .returning();
+    const [inactiveType] = await db
+      .insert(facilityTypes)
+      .values({
+        code: 'retired_pool',
+        name: 'Retired Pool',
+        operationalClassification: 'entrance_based',
+        isActive: false,
+      })
+      .returning();
+    const [activeFacility, inactiveFacility, inactiveTypeFacility] = await db
+      .insert(facilities)
+      .values([
+        {
+          facilityTypeId: activeType.id,
+          name: 'Visible Park',
+          address: 'Addis Ababa',
+          location: { x: 38.7578, y: 9.0301 },
+        },
+        {
+          facilityTypeId: activeType.id,
+          name: 'Hidden Park',
+          address: 'Addis Ababa',
+          location: { x: 38.76, y: 9.03 },
+          isActive: false,
+        },
+        {
+          facilityTypeId: inactiveType.id,
+          name: 'Retired Pool Facility',
+          address: 'Addis Ababa',
+          location: { x: 38.77, y: 9.02 },
+        },
+      ])
+      .returning();
+
+    await expect(
+      facilitiesRepository.getFacility(activeFacility.id),
+    ).resolves.toMatchObject({ name: 'Visible Park' });
+    await expect(
+      facilitiesRepository.getFacility(inactiveFacility.id),
+    ).resolves.toBeNull();
+    await expect(
+      facilitiesRepository.getFacility(inactiveTypeFacility.id),
+    ).resolves.toBeNull();
   });
 
   it('rejects an operational classification outside the two-model contract', async () => {
