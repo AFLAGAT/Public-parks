@@ -25,4 +25,12 @@ export class AppConfigService {
   get isTest(): boolean {
     return this.nodeEnv === 'test';
   }
+
+  get isDevelopment(): boolean {
+    return this.nodeEnv === 'development';
+  }
+
+  get enableDocs(): boolean {
+    return this.config.get('APP_ENABLE_DOCS', { infer: true });
+  }
 }

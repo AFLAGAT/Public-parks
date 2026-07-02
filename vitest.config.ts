@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    include: ['src/**/*.{spec,test}.ts'],
+    include: ['src/**/*.{spec,test}.ts', 'test/**/!(*.integration).{spec,test}.ts'],
     passWithNoTests: false,
     env: {
       APP_NODE_ENV: 'test',

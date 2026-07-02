@@ -24,7 +24,29 @@ const dbEnvSchema = z.object({
     ),
 });
 
-export const envSchema = appEnvSchema.merge(logEnvSchema).merge(dbEnvSchema);
+/**
+ * Coerces a boolean-compatible value from supported forms:
+ *   boolean: true, false
+ *   string:  'true', 'false', '1', '0'
+ *
+ * Rejects malformed values such as 'yes', 'treu', empty strings, and
+ * unsupported numbers. This ensures APP_ENABLE_DOCS and any future
+ * boolean env vars fail loudly instead of silently coercing to false.
+ */
+const coerceBoolean = z
+  .union([
+    z.boolean(),
+    z.literal('true').transform(() => true as const),
+    z.literal('false').transform(() => false as const),
+    z.literal('1').transform(() => true as const),
+    z.literal('0').transform(() => false as const),
+  ]);
+
+const docsEnvSchema = z.object({
+  APP_ENABLE_DOCS: coerceBoolean.default(false),
+});
+
+export const envSchema = appEnvSchema.merge(logEnvSchema).merge(dbEnvSchema).merge(docsEnvSchema);
 export type Env = z.infer<typeof envSchema>;
 
 /**

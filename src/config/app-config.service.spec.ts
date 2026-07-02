@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
-import { ConfigService } from '@nestjs/config';
+import { type ConfigService } from '@nestjs/config';
 import { AppConfigService } from './app-config.service';
 import type { Env } from './env.schema';
 
@@ -18,6 +18,7 @@ describe('AppConfigService', () => {
         APP_PORT: 8080,
         LOG_LEVEL: 'warn',
         DB_PRIMARY_URL: 'postgres://prod-db.internal:5432/parks',
+        APP_ENABLE_DOCS: false,
       }),
     );
 
@@ -26,6 +27,7 @@ describe('AppConfigService', () => {
     expect(service.logLevel).toBe('warn');
     expect(service.isProduction).toBe(true);
     expect(service.isTest).toBe(false);
+    expect(service.enableDocs).toBe(false);
   });
 
   it('reports isTest when APP_NODE_ENV is test', () => {
@@ -35,10 +37,25 @@ describe('AppConfigService', () => {
         APP_PORT: 3000,
         LOG_LEVEL: 'info',
         DB_PRIMARY_URL: 'postgres://parks:parks_dev@localhost:5432/parks_test',
+        APP_ENABLE_DOCS: false,
       }),
     );
 
     expect(service.isProduction).toBe(false);
     expect(service.isTest).toBe(true);
+  });
+
+  it('returns enableDocs from APP_ENABLE_DOCS env', () => {
+    const service = new AppConfigService(
+      makeConfig({
+        APP_NODE_ENV: 'development',
+        APP_PORT: 3000,
+        LOG_LEVEL: 'info',
+        DB_PRIMARY_URL: 'postgres://parks:parks_dev@localhost:5432/parks_dev',
+        APP_ENABLE_DOCS: true,
+      }),
+    );
+
+    expect(service.enableDocs).toBe(true);
   });
 });

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   assertNoDevInfraValues,
   assertNoDevSecretPlaceholders,
-  DevInfraRegistryEntry,
-  Env,
-  SecretRegistryEntry,
+  type DevInfraRegistryEntry,
+  type Env,
+  type SecretRegistryEntry,
   validateEnv,
 } from './env.schema';
 
@@ -15,6 +15,7 @@ const baseEnv: Env = {
   APP_PORT: 3000,
   LOG_LEVEL: 'info',
   DB_PRIMARY_URL: VALID_DB_URL,
+  APP_ENABLE_DOCS: false,
 };
 
 describe('validateEnv', () => {
@@ -24,6 +25,7 @@ describe('validateEnv', () => {
     expect(env.APP_PORT).toBe(3000);
     expect(env.LOG_LEVEL).toBe('info');
     expect(env.DB_PRIMARY_URL).toBe(VALID_DB_URL);
+    expect(env.APP_ENABLE_DOCS).toBe(false);
   });
 
   it('coerces APP_PORT from string', () => {
@@ -92,6 +94,117 @@ describe('validateEnv', () => {
     });
     expect(env.DB_PRIMARY_URL.startsWith('postgresql://')).toBe(true);
   });
+
+  it('defaults APP_ENABLE_DOCS to false', () => {
+    const env = validateEnv({ APP_NODE_ENV: 'development', DB_PRIMARY_URL: VALID_DB_URL });
+    expect(env.APP_ENABLE_DOCS).toBe(false);
+  });
+
+  it('coerces APP_ENABLE_DOCS from string "true"', () => {
+    const env = validateEnv({
+      APP_NODE_ENV: 'development',
+      DB_PRIMARY_URL: VALID_DB_URL,
+      APP_ENABLE_DOCS: 'true',
+    });
+    expect(env.APP_ENABLE_DOCS).toBe(true);
+  });
+
+  it('coerces APP_ENABLE_DOCS from "1"', () => {
+    const env = validateEnv({
+      APP_NODE_ENV: 'development',
+      DB_PRIMARY_URL: VALID_DB_URL,
+      APP_ENABLE_DOCS: '1',
+    });
+    expect(env.APP_ENABLE_DOCS).toBe(true);
+  });
+
+  it('interprets "false" string for APP_ENABLE_DOCS', () => {
+    const env = validateEnv({
+      APP_NODE_ENV: 'development',
+      DB_PRIMARY_URL: VALID_DB_URL,
+      APP_ENABLE_DOCS: 'false',
+    });
+    expect(env.APP_ENABLE_DOCS).toBe(false);
+  });
+
+  it('accepts APP_ENABLE_DOCS as literal "0"', () => {
+    const env = validateEnv({
+      APP_NODE_ENV: 'development',
+      DB_PRIMARY_URL: VALID_DB_URL,
+      APP_ENABLE_DOCS: '0',
+    });
+    expect(env.APP_ENABLE_DOCS).toBe(false);
+  });
+
+  it('accepts APP_ENABLE_DOCS as boolean true', () => {
+    const env = validateEnv({
+      APP_NODE_ENV: 'development',
+      DB_PRIMARY_URL: VALID_DB_URL,
+      APP_ENABLE_DOCS: true,
+    });
+    expect(env.APP_ENABLE_DOCS).toBe(true);
+  });
+
+  it('rejects malformed APP_ENABLE_DOCS value "yes"', () => {
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        DB_PRIMARY_URL: VALID_DB_URL,
+        APP_ENABLE_DOCS: 'yes',
+      }),
+    ).toThrow(/APP_ENABLE_DOCS/);
+  });
+
+  it('rejects malformed APP_ENABLE_DOCS value "treu"', () => {
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        DB_PRIMARY_URL: VALID_DB_URL,
+        APP_ENABLE_DOCS: 'treu',
+      }),
+    ).toThrow(/APP_ENABLE_DOCS/);
+  });
+
+  it('rejects empty string for APP_ENABLE_DOCS', () => {
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        DB_PRIMARY_URL: VALID_DB_URL,
+        APP_ENABLE_DOCS: '',
+      }),
+    ).toThrow(/APP_ENABLE_DOCS/);
+  });
+
+  it('rejects unsupported number 2 for APP_ENABLE_DOCS', () => {
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        DB_PRIMARY_URL: VALID_DB_URL,
+        APP_ENABLE_DOCS: 2,
+      }),
+    ).toThrow(/APP_ENABLE_DOCS/);
+  });
+
+  it('rejects unsupported number -1 for APP_ENABLE_DOCS', () => {
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        DB_PRIMARY_URL: VALID_DB_URL,
+        APP_ENABLE_DOCS: -1,
+      }),
+    ).toThrow(/APP_ENABLE_DOCS/);
+  });
+
+  it('rejects "TRUE" (uppercase) for APP_ENABLE_DOCS', () => {
+    expect(() =>
+      validateEnv({
+        APP_NODE_ENV: 'development',
+        DB_PRIMARY_URL: VALID_DB_URL,
+        APP_ENABLE_DOCS: 'TRUE',
+      }),
+    ).toThrow(/APP_ENABLE_DOCS/);
+  });
+
 });
 
 describe('assertNoDevSecretPlaceholders', () => {

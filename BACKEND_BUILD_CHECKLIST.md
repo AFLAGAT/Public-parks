@@ -125,15 +125,17 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Performance considerations:** Use PostGIS or equivalent spatial indexing instead of naive latitude/longitude filtering.
   - **Dependencies:** Database hosting, migration tooling, geospatial extension support.
 
-- [ ] **Set up ORM or query builder with migration discipline.** **Priority:** High. **Purpose:** Keep schema evolution reviewable, repeatable, and safe across environments.
+- [x] **Set up ORM or query builder with migration discipline.** **Priority:** High. **Purpose:** Keep schema evolution reviewable, repeatable, and safe across environments.
   - **Security considerations:** Parameterized queries must be the default path to prevent SQL injection.
   - **Dependencies:** Migration framework, rollback policy, schema review process.
 
-- [ ] **Create API documentation pipeline.** **Priority:** High. **Purpose:** Maintain OpenAPI or equivalent contracts for mobile, staff, and admin teams.
+- [x] **Create API documentation pipeline.** **Priority:** High. **Purpose:** Maintain OpenAPI or equivalent contracts for mobile, staff, and admin teams.
   - **Dependencies:** Request/response schema definitions, contract testing plan.
+  - **Notes:** Swagger UI at `/docs` (disabled by default in staging and production; enabled by default in development and test; override via `APP_ENABLE_DOCS=true`). OpenAPI JSON at `/docs-json`. Standalone generator (`npm run docs:generate`) outputs `dist/openapi.json` without a live database. Bearer auth scheme declared as a placeholder (JWT auth not yet implemented). `@nestjs/swagger ^8.1.1` compatible with NestJS 10. See `learning-guide/phase-02.md` for full evidence.
 
-- [ ] **Set up testing framework and test database workflow.** **Priority:** High. **Purpose:** Make unit, integration, API, concurrency, security, and payment-flow tests easy to run consistently.
+- [x] **Set up testing framework and test database workflow.** **Priority:** High. **Purpose:** Make unit, integration, API, concurrency, security, and payment-flow tests easy to run consistently.
   - **Dependencies:** Test runner, isolated database, factory fixtures, CI.
+  - **Notes:** Unit (`npm run test:unit`) and integration (`npm run test:integration`) test suites are fully separated. Integration tests use a disposable PostgreSQL/PostGIS database provisioned via `docker-compose.test.yml` and orchestrated by `test/integration/run-integration.ts`. A database safety guard (`validateTestDatabaseUrl`) runs before migrations to prevent accidental targeting of non-test databases. `npm run test:all` runs both suites sequentially. Integration tests require Docker Desktop and will fail with a clear actionable error otherwise. **Remediation (Phase 2 verification):** See `learning-guide/phase-02.md#testing-framework--remediation` for the full list of hardening changes applied, including: dynamic Compose project name per run, port validation (1–65535), signal safety (SIGINT/SIGTERM handlers with conventional exit codes), `pg.Pool`-based DB wait (no shell string interpolation), idempotent teardown (exactly once), `process.exitCode` instead of `process.exit()`, standard WHATWG URL parser in guard (rejected 0.0.0.0, spoofed names, credential redaction), Vitest setup file with guard integration, Drizzle client usage in smoke test with `__drizzle_migrations` hash verification, explicit teardown in tsconfig boundaries, and corrected fixture documentation (proper `PoolClient` checkout for transaction isolation, corrected DDL auto-commit claim).
 
 - [ ] **Create standard request validation layer.** **Priority:** Critical. **Purpose:** Validate and normalize all external input at the API boundary.
   - **Security considerations:** Reject unexpected fields, invalid enum values, malformed IDs, unsafe strings, impossible dates, invalid quantities, and cross-tenant identifiers before business logic.

@@ -1,0 +1,43 @@
+# Test-only PostGIS database for integration tests.
+#
+# Uses a separate `parks_test` database, test-only credentials, no fixed
+# container_name, loopback-only port binding, a configurable host port
+# (defaults to 5433 to avoid conflicting with the development database on
+# 5432), health check, and disposable storage.
+#
+# The test orchestrator (`test/integration/run-integration.ts`) manages
+# this service: it starts the container, waits for health, runs migrations,
+# executes integration tests, and always runs `docker compose down
+# --volumes --remove-orphans` on completion — even on failure or interrupt.
+#
+# Never point a development, staging, or production deploy at this database.
+# The database safety guard in `test/integration/helpers/test-database.guard.ts`
+# enforces this at runtime.
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    # No restart — this is a disposable test-only service.
+    # The orchestrator manages its lifecycle entirely.
+    environment:
+      POSTGRES_DB: parks_test
+      POSTGRES_USER: parks
+      POSTGRES_PASSWORD: parks_test
+    ports:
+      # Loopback-only to prevent external access; configurable host port via
+      # TEST_DB_PORT (default 5433). The dev database uses 5432, so default
+      # 5433 avoids port conflicts when both run simultaneously.
+      - "127.0.0.1:${TEST_DB_PORT:-5433}:5432"
+    volumes:
+      - parks-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parks -d parks_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  parks-test-data:
+    # No explicit `name:` — let Docker Compose auto-generate a project-
+    # scoped name so `--volumes` teardown is clean and doesn't collide
+    # with other projects or environments.

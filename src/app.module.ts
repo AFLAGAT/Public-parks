@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/config.module';
+import { DatabaseModule } from './database/drizzle.module';
 import { AuthModule } from './auth/auth.module';
 import { FacilitiesModule } from './facilities/facilities.module';
 import { SlotBookingModule } from './slot-booking/slot-booking.module';
@@ -10,10 +11,12 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
 import { SyncModule } from './sync/sync.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { DocsModule } from './docs/docs.module';
 
 @Module({
   imports: [
     ConfigModule,
+    DatabaseModule,
     AuthModule,
     FacilitiesModule,
     SlotBookingModule,
@@ -24,6 +27,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
     AdminAnalyticsModule,
     SyncModule,
     AuditLogsModule,
+    DocsModule,
   ],
 })
 export class AppModule {}
