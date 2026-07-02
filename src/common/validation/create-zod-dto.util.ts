@@ -1,7 +1,7 @@
 import type { ZodTypeAny } from 'zod';
 
 export interface ZodDtoStatic {
-  new (): unknown;
+  new (): object;
   zodSchema: ZodTypeAny;
 }
 

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/config.module';
+import { ValidationModule } from './common/validation/validation.module';
 import { DatabaseModule } from './database/drizzle.module';
 import { AuthModule } from './auth/auth.module';
 import { FacilitiesModule } from './facilities/facilities.module';
@@ -16,6 +17,7 @@ import { DocsModule } from './docs/docs.module';
 @Module({
   imports: [
     ConfigModule,
+    ValidationModule,
     DatabaseModule,
     AuthModule,
     FacilitiesModule,
