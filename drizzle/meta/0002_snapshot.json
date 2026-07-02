@@ -1,0 +1,384 @@
+{
+  "id": "ae86f57e-63f6-4afd-b90b-a641fd356e94",
+  "prevId": "cd3c41a8-110f-4ac4-bdb6-40ff5f13fae4",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.facilities": {
+      "name": "facilities",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "facility_type_id": {
+          "name": "facility_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(160)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "varchar(300)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location": {
+          "name": "location",
+          "type": "geometry(Point,4326)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_facilities__facility_type_id": {
+          "name": "idx_facilities__facility_type_id",
+          "columns": [
+            {
+              "expression": "facility_type_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_facilities__location_geography": {
+          "name": "idx_facilities__location_geography",
+          "columns": [
+            {
+              "expression": "(\"location\"::geography)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gist",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fk_facilities__facility_type_id__facility_types": {
+          "name": "fk_facilities__facility_type_id__facility_types",
+          "tableFrom": "facilities",
+          "tableTo": "facility_types",
+          "columnsFrom": [
+            "facility_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "pk_facilities": {
+          "name": "pk_facilities",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_facilities__name_normalized": {
+          "name": "chk_facilities__name_normalized",
+          "value": "\"facilities\".\"name\" = btrim(\"facilities\".\"name\") and char_length(\"facilities\".\"name\") > 0"
+        },
+        "chk_facilities__address_normalized": {
+          "name": "chk_facilities__address_normalized",
+          "value": "\"facilities\".\"address\" = btrim(\"facilities\".\"address\") and char_length(\"facilities\".\"address\") > 0"
+        },
+        "chk_facilities__location_bounds": {
+          "name": "chk_facilities__location_bounds",
+          "value": "ST_X(\"facilities\".\"location\") between -180 and 180 and ST_Y(\"facilities\".\"location\") between -90 and 90"
+        },
+        "chk_facilities__location_srid": {
+          "name": "chk_facilities__location_srid",
+          "value": "ST_SRID(\"facilities\".\"location\") = 4326"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.facility_types": {
+      "name": "facility_types",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operational_classification": {
+          "name": "operational_classification",
+          "type": "facility_operational_classification",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uidx_facility_types__code": {
+          "name": "uidx_facility_types__code",
+          "columns": [
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "pk_facility_types": {
+          "name": "pk_facility_types",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_facility_types__code_normalized": {
+          "name": "chk_facility_types__code_normalized",
+          "value": "\"facility_types\".\"code\" ~ '^[a-z][a-z0-9]*(_[a-z0-9]+)*$'"
+        },
+        "chk_facility_types__name_normalized": {
+          "name": "chk_facility_types__name_normalized",
+          "value": "\"facility_types\".\"name\" = btrim(\"facility_types\".\"name\") and char_length(\"facility_types\".\"name\") > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(254)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone_number_verified_at": {
+          "name": "phone_number_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_verified_at": {
+          "name": "email_verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "uidx_users__phone_number": {
+          "name": "uidx_users__phone_number",
+          "columns": [
+            {
+              "expression": "phone_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "uidx_users__email": {
+          "name": "uidx_users__email",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "pk_users": {
+          "name": "pk_users",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_users__identity_channel_present": {
+          "name": "chk_users__identity_channel_present",
+          "value": "\"users\".\"phone_number\" is not null or \"users\".\"email\" is not null"
+        },
+        "chk_users__phone_number_e164": {
+          "name": "chk_users__phone_number_e164",
+          "value": "\"users\".\"phone_number\" is null or \"users\".\"phone_number\" ~ '^\\+[1-9][0-9]{7,14}$'"
+        },
+        "chk_users__email_normalized": {
+          "name": "chk_users__email_normalized",
+          "value": "\"users\".\"email\" is null or (\"users\".\"email\" = lower(btrim(\"users\".\"email\")) and char_length(\"users\".\"email\") between 3 and 254 and position('@' in \"users\".\"email\") > 1)"
+        },
+        "chk_users__phone_verification_has_phone_number": {
+          "name": "chk_users__phone_verification_has_phone_number",
+          "value": "\"users\".\"phone_number_verified_at\" is null or \"users\".\"phone_number\" is not null"
+        },
+        "chk_users__email_verification_has_email": {
+          "name": "chk_users__email_verification_has_email",
+          "value": "\"users\".\"email_verified_at\" is null or \"users\".\"email\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.facility_operational_classification": {
+      "name": "facility_operational_classification",
+      "schema": "public",
+      "values": [
+        "slot_based",
+        "entrance_based"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

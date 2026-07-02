@@ -55,6 +55,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 ## Phase 3 — Database Design
 
 - [Model users with client-neutral identity](phase-03.md#model-users-with-client-neutral-identity) — shared UUID identity with normalized unique phone/email channels, verification-state constraints, no embedded roles/clients/credentials, and real PostgreSQL failure-mode coverage.
+- [Model facilities with operational classification](phase-03.md#model-facilities-with-operational-classification) — facility-type-owned slot/entrance classification, SRID-enforced PostGIS points, meter-based GiST discovery index, and real geospatial/constraint tests.
 
 ## Phase 4 — Authentication and Security
 

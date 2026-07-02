@@ -195,8 +195,9 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Security considerations:** Check assignment validity for each schedule view, QR validation, and sync pull or push.
   - **Dependencies:** Users, facilities, roles, audit logs.
 
-- [ ] **Model facilities with operational classification.** **Priority:** Critical. **Purpose:** Distinguish slot-based and entrance-based facilities at the schema level.
+- [x] **Model facilities with operational classification.** **Priority:** Critical. **Purpose:** Distinguish slot-based and entrance-based facilities at the schema level.
   - **Dependencies:** Facility type records, geospatial location, pricing, schedules, capacity settings.
+  - **Notes:** Added `facility_types` as the single source of the `facility_operational_classification` enum (`slot_based`, `entrance_based`) and `facilities` with a named type foreign key, normalized public name/address fields, active state, and `geometry(Point,4326)` location. A GiST expression index on `location::geography` supports accurate meter-based nearby discovery; named checks enforce coordinate bounds and SRID. Generated `0002_create_facilities.sql`, repaired the hand-written base snapshot chain so future Drizzle migrations remain linear, and recorded the classification/location decision in `DECISIONS.md`. Real PostGIS tests prove classification joins, EWKB round-trip, nearby radius filtering, index shape, enum/normalization rejection, coordinate constraints, and FK protection. Verification: 125/125 unit tests, 23/23 integration tests, typecheck, lint, and production build pass.
 
 - [ ] **Model courts and fields as child resources.** **Priority:** High. **Purpose:** Track reservable physical assets for slot-based facilities.
   - **Dependencies:** Facilities, maintenance closures, schedules, slot reservations.
