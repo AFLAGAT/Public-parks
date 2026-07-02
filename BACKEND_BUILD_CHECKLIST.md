@@ -10,6 +10,12 @@ This checklist assumes one backend serves three clients:
 
 Every checklist item includes a checkbox, priority, and one-line purpose. Extra fields are included only where they materially affect security, performance, or dependency planning.
 
+## How to use this checklist
+
+- **This is a target-state blueprint grouped by concern, not a strict top-to-bottom build order.** Execution order follows AIRules.md's **Execution Model**: build the minimum foundation, then complete one thin end-to-end vertical slice (resident → facility → entrance ticket → mock payment → QR → check-in → audit) before broadening. Build cross-cutting infrastructure when a slice needs it, not preemptively.
+- **Priority is governed by AIRules.md's Priority Rubric.** "Critical" is reserved for defects that cause financial loss, unauthorized access, oversell/double-booking, forged/replayed credentials, loss of accountability records, data breach/cross-env bleed, permanent data loss, or injection at a trust boundary. Everything else is High or Medium — important and built correctly, but a fixable defect rather than a public incident. Where a printed label conflicts with the rubric, the rubric wins.
+- **Definition of done + anti-rework:** an item is closed once it works, meets its Testing Gate tier, and has its learning-guide entry. Do not re-open closed foundational items to polish them — file hardening as a scoped item under the phase that owns it (performance → Phase 8, security/load → Phase 9, ops → Phase 10, gate → Phase 11). The production bar is met by each phase boundary, not by perfecting every file on first contact.
+
 Architecture and design decisions ("define/design" items) are resolved per AIRules.md's Decision Velocity Rule and recorded in DECISIONS.md — check there before treating any such item as open.
 
 ## Core Domain Assumptions
@@ -110,7 +116,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [x] **Initialize production-oriented project structure.** **Priority:** High. **Purpose:** Create module boundaries that mirror the architecture instead of a flat prototype layout.
   - **Dependencies:** Chosen backend framework, module naming conventions, test layout.
 
-- [x] **Create configuration management layer.** **Priority:** Critical. **Purpose:** Centralize typed runtime configuration for database, cache, queues, Telebirr, auth, storage, and observability.
+- [x] **Create configuration management layer.** **Priority:** High. **Purpose:** Centralize typed runtime configuration for database, cache, queues, Telebirr, auth, storage, and observability.
   - **Security considerations:** Reject startup when required secrets are missing, malformed, or accidentally using development defaults in staging or production.
 
 - [x] **Set up secrets management.** **Priority:** Critical. **Purpose:** Keep credentials out of source code, committed env files, Docker images, and logs.
@@ -121,7 +127,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Security considerations:** Production data must not be copied into lower environments without masking and explicit approval.
   - **Dependencies:** Infrastructure accounts/projects, secrets manager, database provisioning.
 
-- [x] **Provision PostgreSQL with geospatial support.** **Priority:** Critical. **Purpose:** Support transactional integrity and efficient geolocation facility search.
+- [x] **Provision PostgreSQL with geospatial support.** **Priority:** High. **Purpose:** Support transactional integrity and efficient geolocation facility search.
   - **Performance considerations:** Use PostGIS or equivalent spatial indexing instead of naive latitude/longitude filtering.
   - **Dependencies:** Database hosting, migration tooling, geospatial extension support.
 
@@ -144,12 +150,13 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [ ] **Create standard response and pagination helpers.** **Priority:** High. **Purpose:** Enforce consistent list shapes, page sizes, cursors, and metadata across APIs.
   - **Performance considerations:** Default page sizes must prevent unbounded scans and oversized payloads.
 
-- [x] **Create structured logging foundation.** **Priority:** Critical. **Purpose:** Emit searchable logs with correlation IDs, actor IDs, endpoint names, payment IDs, QR IDs, and sync batch IDs where relevant.
+- [x] **Create structured logging foundation.** **Priority:** High. **Purpose:** Emit searchable logs with correlation IDs, actor IDs, endpoint names, payment IDs, QR IDs, and sync batch IDs where relevant.
   - **Security considerations:** Redact tokens, OTPs, QR secrets, payment secrets, and personal data not required for operations.
   - **Notes:** Implemented ahead of the response/pagination helper at project-owner direction because the existing validation error contract already depended on a real correlation ID and centralized error handling depends on logging. Global `LoggingModule` configures `nestjs-pino`/Pino JSON logs, UUID-only `x-correlation-id` reuse with generated fallback, response-header propagation, minimal request/response serializers (no headers, bodies, or query strings), status-aware log levels, and logger-level sensitive-field redaction. `LoggingContextService` provides typed `actorId`, `endpoint`, `paymentId`, `qrCodeId`, and `syncBatchId` enrichment for later modules. Validation errors now return the request's real correlation ID. Covered by correlation, serializer, redaction, context, module-composition, and HTTP end-to-end tests; 97/97 unit tests, typecheck, lint, and production build pass.
 
-- [ ] **Create centralized error handling.** **Priority:** High. **Purpose:** Map validation, auth, permission, conflict, payment, and infrastructure failures to stable client-facing errors.
+- [x] **Create centralized error handling.** **Priority:** High. **Purpose:** Map validation, auth, permission, conflict, payment, and infrastructure failures to stable client-facing errors.
   - **Dependencies:** Error code catalog, logging middleware.
+  - **Notes:** Single global `AllExceptionsFilter` (`@Catch()`) in `src/common/errors/` owns the canonical `{ error: { code, message, details, correlationId } }` envelope for every failure: `RequestValidationException` → 400 `VALIDATION_FAILED`; `ApplicationException` (new base class) → its catalog code/status/client-safe details; framework `HttpException` → status mapped to a stable catalog code; anything else → 500 `INTERNAL_ERROR` with a generic message (no internal leakage) logged at error level with stack. Error-code taxonomy + HTTP-status mapping live in `error-codes.ts`. **Deviation (Execution Model):** consolidated error rendering here — the per-exception `ValidationExceptionFilter` from the closed request-validation item was superseded and removed (its behavior is reproduced byte-for-byte and still covered by `validation.e2e.spec.ts`), because NestJS's first-match-over-reversed-registration filter resolution makes a catch-all coexisting with type-specific filters order-fragile. `ValidationModule` now registers only the pipe. See `learning-guide/phase-02.md`.
 
 - [ ] **Set up authentication middleware skeleton.** **Priority:** Critical. **Purpose:** Make authenticated-by-default routing possible from the first endpoint.
   - **Security considerations:** Public endpoints must be explicitly marked public, not accidentally left unauthenticated.
@@ -158,7 +165,7 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Security considerations:** Permission checks must run server-side and include facility scope where applicable.
   - **Dependencies:** Roles, permissions, staff assignments, admin policy.
 
-- [ ] **Set up shared rate limiter infrastructure.** **Priority:** Critical. **Purpose:** Provide reusable endpoint, user, IP, and OTP-specific throttling from the start.
+- [ ] **Set up shared rate limiter infrastructure.** **Priority:** High. **Purpose:** Provide reusable endpoint, user, IP, and OTP-specific throttling from the start. (The OTP/login/payment-specific limits that enforce this in Phase 4 remain Critical; this item is the shared infrastructure they build on.)
   - **Security considerations:** Avoid trusting raw client IP without proxy-aware configuration.
   - **Performance considerations:** Use a shared store so limits work across API instances.
 
@@ -351,10 +358,10 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [ ] **Build resident profile APIs.** **Priority:** High. **Purpose:** Let residents manage personal details, notification preferences, active sessions, and account status.
   - **Security considerations:** Users must only access or change their own profile unless an admin endpoint with explicit permission is used.
 
-- [ ] **Build facility discovery APIs.** **Priority:** Critical. **Purpose:** Support GPS-based nearby search, text search, filtering by facility type, amenities, availability hints, and public facility details.
+- [ ] **Build facility discovery APIs.** **Priority:** High. **Purpose:** Support GPS-based nearby search, text search, filtering by facility type, amenities, availability hints, and public facility details.
   - **Performance considerations:** Use geospatial indexes, bounded result sets, pagination, and cache public facility metadata separately from live availability.
 
-- [ ] **Build slot availability APIs.** **Priority:** Critical. **Purpose:** Let residents query available courts and time ranges accurately before booking.
+- [ ] **Build slot availability APIs.** **Priority:** High. **Purpose:** Let residents query available courts and time ranges accurately before booking.
   - **Performance considerations:** Optimize for repeated reads by facility/date/sport while avoiding stale confirmed or held slot data.
   - **Dependencies:** Facilities, courts, schedules, closures, reservations, holds.
 
@@ -564,19 +571,19 @@ This phase builds the real Telebirr adapter behind the `PaymentProvider` interfa
 
 ## Phase 8: Performance Optimization
 
-- [ ] **Profile high-volume query paths.** **Priority:** Critical. **Purpose:** Measure slot availability, geolocation search, staff daily schedule, QR validation, resident booking lists, and analytics before guessing optimizations.
+- [ ] **Profile high-volume query paths.** **Priority:** High. **Purpose:** Measure slot availability, geolocation search, staff daily schedule, QR validation, resident booking lists, and analytics before guessing optimizations.
   - **Dependencies:** Observability, realistic test data, query tracing.
 
-- [ ] **Optimize geolocation facility search.** **Priority:** Critical. **Purpose:** Return nearby facilities efficiently at city scale.
+- [ ] **Optimize geolocation facility search.** **Priority:** High. **Purpose:** Return nearby facilities efficiently at city scale.
   - **Performance considerations:** Use spatial indexes, bounding boxes, distance ordering, filters, pagination, and cacheable public metadata.
 
-- [ ] **Optimize slot availability lookups.** **Priority:** Critical. **Purpose:** Keep booking discovery fast during peak demand.
+- [ ] **Optimize slot availability lookups.** **Priority:** High. **Purpose:** Keep booking discovery fast during peak demand.
   - **Performance considerations:** Index by facility, court, date/time range, status, schedule exceptions, and active holds; avoid repeated N+1 schedule queries.
 
 - [ ] **Optimize staff daily schedule queries.** **Priority:** High. **Purpose:** Load assigned facility schedules quickly for online and offline staff workflows.
   - **Performance considerations:** Query by facility/date/status and pre-shape payloads for mobile sync.
 
-- [ ] **Optimize QR validation queries.** **Priority:** Critical. **Purpose:** Keep gate or facility entry scans responsive and reliable.
+- [ ] **Optimize QR validation queries.** **Priority:** High. **Purpose:** Keep gate or facility entry scans responsive and reliable.
   - **Performance considerations:** Index QR token identifiers, status, payable type, payable ID, visit date, facility, and check-in dedupe keys.
 
 - [ ] **Optimize entrance capacity purchase path.** **Priority:** Critical. **Purpose:** Maintain correctness under high contention without unacceptable latency.
@@ -588,7 +595,7 @@ This phase builds the real Telebirr adapter behind the `PaymentProvider` interfa
 - [ ] **Add indexes tied to admin operations.** **Priority:** High. **Purpose:** Keep facility management, user support, staff assignment, payment search, and audit review usable.
   - **Performance considerations:** Index by target IDs, actor IDs, facility IDs, dates, statuses, and provider references used in filters.
 
-- [ ] **Implement pagination on every list endpoint.** **Priority:** Critical. **Purpose:** Prevent unbounded response payloads and database scans.
+- [ ] **Implement pagination on every list endpoint.** **Priority:** High. **Purpose:** Prevent unbounded response payloads and database scans.
   - **Performance considerations:** Use cursor pagination for high-volume chronological lists such as audit logs, notifications, payments, and check-ins.
 
 - [ ] **Define caching for public facility data.** **Priority:** High. **Purpose:** Reduce repeated reads for mostly stable facility profiles, amenities, images, and public descriptions.

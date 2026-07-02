@@ -1,18 +1,15 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { APP_PIPE } from '@nestjs/core';
 import { ZodValidationPipe } from './zod-validation.pipe';
-import { ValidationExceptionFilter } from './validation-exception.filter';
 
 /**
  * Registers request validation globally: every route argument with a Zod schema
- * (via createZodDto) is validated by ZodValidationPipe, and validation failures
- * are rendered as the canonical error envelope by ValidationExceptionFilter.
- * Imported by AppModule.
+ * (via createZodDto) is validated by ZodValidationPipe. Validation failures are
+ * thrown as RequestValidationException and rendered as the canonical error
+ * envelope by the centralized AllExceptionsFilter (see common/errors) — this
+ * module no longer owns an exception filter of its own. Imported by AppModule.
  */
 @Module({
-  providers: [
-    { provide: APP_PIPE, useClass: ZodValidationPipe },
-    { provide: APP_FILTER, useClass: ValidationExceptionFilter },
-  ],
+  providers: [{ provide: APP_PIPE, useClass: ZodValidationPipe }],
 })
 export class ValidationModule {}

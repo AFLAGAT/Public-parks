@@ -7,6 +7,7 @@ import { Test } from '@nestjs/testing';
 import { z } from 'zod';
 import { LoggingModule } from '../logging/logging.module';
 import { CORRELATION_ID_HEADER } from '../logging/request-correlation.util';
+import { ErrorsModule } from '../errors/errors.module';
 import { ValidationModule } from './validation.module';
 import { createZodDto } from './create-zod-dto.util';
 
@@ -40,7 +41,7 @@ describe('validation layer (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [LoggingModule, ValidationModule],
+      imports: [LoggingModule, ErrorsModule, ValidationModule],
       controllers: [FixtureThingsController],
     }).compile();
     app = moduleRef.createNestApplication();

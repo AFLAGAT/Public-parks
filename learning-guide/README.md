@@ -2,7 +2,10 @@
 
 Append-only build log for the Public Recreation Facility Management Platform backend. One file per phase of `BACKEND_BUILD_CHECKLIST.md`. An entry is appended to the matching phase file immediately after a checklist item is completed.
 
-Each entry contains: what was done, why, how it works, key concepts, best practices, and mistakes to avoid.
+Entry depth is tiered by risk (see AIRules.md → Learning Guide Enforcement):
+
+- **Critical-path items** (payments, QR, capacity locking, auth, audit immutability): full entry — what was done, why, how it works, key concepts, best practices, and mistakes to avoid.
+- **All other items:** concise entry — what was done, why, and any non-obvious gotcha (3–6 sentences). Do not pad plumbing into a six-heading essay.
 
 This README is a one-line-per-entry index linking into the phase files. Add a new line here every time a phase file gets a new entry.
 
@@ -46,6 +49,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 - [Testing framework — remediation (Phase 2 verification)](phase-02.md#testing-framework--remediation-phase-2-verification) — orchestration hardening (no shell interpolation, port validation, unique Compose project, signal handling, idempotent teardown), database guard hardening (URL constructor, 0.0.0.0 rejection, spoofed-name rejection, credential redaction), guard test expansion (27 tests), Vitest setup file, Drizzle client smoke test with `__drizzle_migrations` hash verification, tsconfig/build boundaries, fixture documentation corrections (PoolClient transaction isolation, DDL transactional correction).
 - [Create standard request validation layer](phase-02.md#create-standard-request-validation-layer) — global Zod pipe + exception filter, createZodDto, strict unknown-field rejection, canonical VALIDATION_FAILED envelope.
 - [Create structured logging foundation](phase-02.md#create-structured-logging-foundation) — global Pino JSON logging, safe correlation-ID propagation, minimal HTTP metadata, status-aware levels, typed operational context, and logger-level sensitive-field redaction.
+- [Create centralized error handling](phase-02.md#create-centralized-error-handling) — single global `AllExceptionsFilter` + stable `ErrorCode` taxonomy + `ApplicationException` base rendering the canonical envelope for validation/application/framework/unknown failures; superseded and removed the per-exception validation filter.
 
 ## Phase 3 — Database Design
 
