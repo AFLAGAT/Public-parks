@@ -36,6 +36,13 @@
       "when": 1783145293701,
       "tag": "0004_steady_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783149770781,
+      "tag": "0005_sharp_synch",
+      "breakpoints": true
     }
   ]
 }

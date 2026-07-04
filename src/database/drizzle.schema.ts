@@ -77,6 +77,10 @@ export const auditActorType = pgEnum('audit_actor_type', [
   'admin',
   'system',
 ]);
+export const staffAssignmentStatus = pgEnum('staff_assignment_status', [
+  'active',
+  'revoked',
+]);
 
 /**
  * Client-neutral identity shared by resident, staff, and admin experiences.
@@ -207,6 +211,78 @@ export const facilities = pgTable(
       sql`ST_X(${table.location}) between -180 and 180 and ST_Y(${table.location}) between -90 and 90`,
     ),
     check('chk_facilities__location_srid', sql`ST_SRID(${table.location}) = 4326`),
+  ],
+);
+
+/**
+ * Server-side source of truth for which staff member may act at which facility,
+ * bounded by an explicit time range. Scope enforcement (schedule views, QR
+ * validation, offline sync) reads the active, in-window assignment from here;
+ * revocation must immediately deny future access. Accountability fields record
+ * which admin created and later revoked each assignment.
+ */
+export const staffAssignments = pgTable(
+  'staff_assignments',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    userId: uuid('user_id').notNull(),
+    facilityId: uuid('facility_id').notNull(),
+    assignedByUserId: uuid('assigned_by_user_id').notNull(),
+    assignmentStatus: staffAssignmentStatus('assignment_status')
+      .default('active')
+      .notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true, mode: 'date' }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true, mode: 'date' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    revokedByUserId: uuid('revoked_by_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_staff_assignments', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_staff_assignments__user_id__users',
+      columns: [table.userId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_staff_assignments__facility_id__facilities',
+      columns: [table.facilityId],
+      foreignColumns: [facilities.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_staff_assignments__assigned_by_user_id__users',
+      columns: [table.assignedByUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_staff_assignments__revoked_by_user_id__users',
+      columns: [table.revokedByUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    uniqueIndex('uidx_staff_assignments__user_facility__where_active')
+      .on(table.userId, table.facilityId)
+      .where(sql`${table.assignmentStatus} = 'active'`),
+    index('idx_staff_assignments__facility_id_assignment_status').on(
+      table.facilityId,
+      table.assignmentStatus,
+    ),
+    index('idx_staff_assignments__user_id_assignment_status').on(
+      table.userId,
+      table.assignmentStatus,
+    ),
+    check(
+      'chk_staff_assignments__time_range',
+      sql`${table.endsAt} is null or ${table.endsAt} > ${table.startsAt}`,
+    ),
+    check(
+      'chk_staff_assignments__revocation_consistency',
+      sql`(${table.assignmentStatus} = 'active' and ${table.revokedAt} is null and ${table.revokedByUserId} is null) or (${table.assignmentStatus} = 'revoked' and ${table.revokedAt} is not null and ${table.revokedByUserId} is not null)`,
+    ),
   ],
 );
 
@@ -663,6 +739,7 @@ export const schema = {
   smsDeliveryAttempts,
   smsProviderConfigurations,
   smsProviderTests,
+  staffAssignments,
   totpFactors,
   totpRecoveryCodes,
   userRoles,
