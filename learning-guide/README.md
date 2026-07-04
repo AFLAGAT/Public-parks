@@ -60,6 +60,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 - [Model facilities with operational classification](phase-03.md#model-facilities-with-operational-classification) — facility-type-owned slot/entrance classification, SRID-enforced PostGIS points, meter-based GiST discovery index, and real geospatial/constraint tests.
 - [Model authentication, SMS revisions, and immutable audit records](phase-03.md#model-authentication-sms-revisions-and-immutable-audit-records) — credential/session/RBAC tables, scope-ready SMS revision state, and monthly append-only audit partitions.
 - [Model staff assignments by facility and time range](phase-03.md#model-staff-assignments-by-facility-and-time-range) — active/revoked staff→facility scope with a validity window, single-active partial-unique invariant, and real-Postgres scope-denial failure-mode tests.
+- [Model QR codes as polymorphic access credentials](phase-03.md#model-qr-codes-as-polymorphic-access-credentials) — enum-constrained `scannable_type`/`scannable_id` (no FK), signed-record-id token with no stored secret, consumption deferred to `check_ins`, and one-active-credential-per-booking partial-unique with real-Postgres failure-mode tests.
 
 ## Phase 4 — Authentication and Security
 

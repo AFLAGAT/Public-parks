@@ -81,6 +81,11 @@ export const staffAssignmentStatus = pgEnum('staff_assignment_status', [
   'active',
   'revoked',
 ]);
+export const qrScannableType = pgEnum('qr_scannable_type', [
+  'slot_reservation',
+  'entrance_ticket',
+]);
+export const qrCodeStatus = pgEnum('qr_code_status', ['active', 'revoked']);
 
 /**
  * Client-neutral identity shared by resident, staff, and admin experiences.
@@ -282,6 +287,44 @@ export const staffAssignments = pgTable(
     check(
       'chk_staff_assignments__revocation_consistency',
       sql`(${table.assignmentStatus} = 'active' and ${table.revokedAt} is null and ${table.revokedByUserId} is null) or (${table.assignmentStatus} = 'revoked' and ${table.revokedAt} is not null and ${table.revokedByUserId} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * Polymorphic access credential. One QR pattern references either a slot
+ * reservation or an entrance ticket through the approved `scannable_type` /
+ * `scannable_id` pair (an enum type, so the credential can never point at a
+ * non-scannable entity). Per the confirmed QR token design, the signed token
+ * carries only this row's `id`; no reusable secret is stored. Single-use and
+ * quantity-aware consumption are recorded in `check_ins` (the idempotency-keyed
+ * scan ledger), not as a boolean here, so this row tracks only issuance and
+ * revocation. `created_at` is the issuance time; revoking denies future scans.
+ * At most one active credential may exist per booking.
+ */
+export const qrCodes = pgTable(
+  'qr_codes',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    scannableType: qrScannableType('scannable_type').notNull(),
+    scannableId: uuid('scannable_id').notNull(),
+    qrCodeStatus: qrCodeStatus('qr_code_status').default('active').notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_qr_codes', columns: [table.id] }),
+    uniqueIndex('uidx_qr_codes__scannable__where_active')
+      .on(table.scannableType, table.scannableId)
+      .where(sql`${table.qrCodeStatus} = 'active'`),
+    check(
+      'chk_qr_codes__revocation_consistency',
+      sql`(${table.qrCodeStatus} = 'active' and ${table.revokedAt} is null) or (${table.qrCodeStatus} = 'revoked' and ${table.revokedAt} is not null)`,
     ),
   ],
 );
@@ -733,6 +776,7 @@ export const schema = {
   otpChallenges,
   passwordCredentials,
   permissions,
+  qrCodes,
   refreshTokens,
   rolePermissions,
   roles,
