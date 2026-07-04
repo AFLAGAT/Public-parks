@@ -26,6 +26,23 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:8.0-alpine
+    container_name: parks-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - parks-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   parks-postgres-data:
     name: parks-postgres-data
+  parks-redis-data:
+    name: parks-redis-data

@@ -4,14 +4,21 @@ import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/app-config.service';
 import { DocsService } from './docs/docs.service';
+import { SecurityConfigService } from './config/security-config.service';
+import helmet from 'helmet';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(PinoNestLogger));
   app.flushLogs();
+  app.use(helmet());
   app.setGlobalPrefix('v1');
 
   const config = app.get(AppConfigService);
+  app.enableCors({
+    origin: [...app.get(SecurityConfigService).superAdminWebOrigins],
+    credentials: true,
+  });
 
   // Mount OpenAPI / Swagger UI if not disabled by policy (disabled in
   // production unless APP_ENABLE_DOCS=true is explicitly set).

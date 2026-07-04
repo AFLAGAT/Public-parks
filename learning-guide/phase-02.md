@@ -321,3 +321,11 @@ Append-only build log entries for Phase 2 checklist items. New entries go at the
 - **Why:** Facility discovery is the first real list in the vertical slice, so this is the first point where shared pagination is a proven dependency rather than speculative infrastructure. Bounded page sizes prevent unbounded scans/payloads, while endpoint-specific cursor schemas stop a cursor from one endpoint or sort key from silently acquiring meaning in another.
 
 - **Non-obvious gotchas:** Node's Base64 decoder accepts some malformed input, so decoding verifies both the allowed Base64URL alphabet and canonical re-encoding before parsing JSON. Client cursor failures become the existing `RequestValidationException`; invalid payloads produced by server code throw `TypeError`/`RangeError` instead, keeping client errors separate from programmer errors. Tests cover query defaults/bounds, round trips, malformed and incompatible cursors, maximum length, fetch-one-extra behavior, immutable input arrays, and empty/final pages; 149 unit tests plus typecheck, lint, and build pass.
+
+---
+
+## Add Redis, security key rings, and provider boundaries
+
+- **What was done:** Added Redis to development/test Compose, typed `REDIS_URL`, shared limiter primitives, Helmet/CORS policy, and separate key material for JWT signing, OTP/token hashing, CSRF, and AES-256-GCM field encryption. Added `OtpDeliveryPort`, `SmsProvider`, the registry, and a database-resolving dispatcher so authentication has no provider/configuration dependency.
+- **Why:** Rate limits and short-lived MFA challenges must work across horizontally scaled API instances, while provider credentials and TOTP factors need encryption keys that never live in PostgreSQL. The narrow delivery port makes switching SMS gateways an infrastructure decision rather than an auth rewrite.
+- **Non-obvious gotcha:** Unit/E2E modules should not require Redis merely to initialize. `RedisService` connects lazily on the first awaited command and still closes cleanly on shutdown; the production request cannot execute a limiter/challenge command before connection succeeds.

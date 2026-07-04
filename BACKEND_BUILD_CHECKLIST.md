@@ -163,13 +163,15 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Security considerations:** Public endpoints must be explicitly marked public, not accidentally left unauthenticated.
   - **Notes:** `AuthModule` registers a global `AuthenticationGuard` through `APP_GUARD`; every controller route is denied with the canonical 401 `AUTHENTICATION_REQUIRED` envelope unless it carries the explicit `@Public()` metadata or a trusted server-side authenticator has assigned an `AuthenticatedActor`. Actor identity is stored in a non-enumerable `WeakMap` request context, so request bodies, headers, and arbitrary bearer strings cannot manufacture identity. This Phase 2 boundary deliberately does not parse or issue JWTs—the Phase 4 token verifier must validate credentials before assigning an actor. Critical-path tests prove explicit-public access, default denial, arbitrary-bearer rejection, spoofed request-property rejection, trusted actor access, and immutable actor assignment; 119/119 tests, typecheck, lint, and production build pass. No new dependency was introduced.
 
-- [ ] **Set up RBAC and permission primitives.** **Priority:** Critical. **Purpose:** Support resident, staff, supervisor, admin, finance, auditor, and system roles with scoped permissions.
+- [x] **Set up RBAC and permission primitives.** **Priority:** Critical. **Purpose:** Support resident, staff, supervisor, admin, finance, auditor, and system roles with scoped permissions.
   - **Security considerations:** Permission checks must run server-side and include facility scope where applicable.
   - **Dependencies:** Roles, permissions, staff assignments, admin policy.
+  - **Notes:** Added normalized roles, permissions, role-permission assignments, and user-role assignments plus a global permission guard. SMS-management routes require the `super_admin_web` client, the `super_admin` role, and `sms_provider_configurations.manage`; resident, City Admin, gate-worker, and unscoped sessions fail closed. Facility scope remains an additional policy owned by the future staff-assignment slice.
 
-- [ ] **Set up shared rate limiter infrastructure.** **Priority:** High. **Purpose:** Provide reusable endpoint, user, IP, and OTP-specific throttling from the start. (The OTP/login/payment-specific limits that enforce this in Phase 4 remain Critical; this item is the shared infrastructure they build on.)
+- [x] **Set up shared rate limiter infrastructure.** **Priority:** High. **Purpose:** Provide reusable endpoint, user, IP, and OTP-specific throttling from the start. (The OTP/login/payment-specific limits that enforce this in Phase 4 remain Critical; this item is the shared infrastructure they build on.)
   - **Security considerations:** Avoid trusting raw client IP without proxy-aware configuration.
   - **Performance considerations:** Use a shared store so limits work across API instances.
+  - **Notes:** Added Node Redis, typed `REDIS_URL`, development/test Compose services, lazy connection lifecycle, shared fixed-window counters, and atomic cooldown keys. Resident OTP and Super Admin challenge endpoints use hashed identity/IP keys so raw phone numbers, emails, and IP addresses are not stored as limiter keys.
 
 - [ ] **Set up background job framework.** **Priority:** High. **Purpose:** Support payment expiry, notifications, reconciliation, analytics aggregation, sync processing, and cleanup.
   - **Performance considerations:** Jobs must be retryable, idempotent, observable, and safe under multiple workers.
@@ -189,8 +191,9 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
   - **Security considerations:** Store only hashed passwords or OTP verification state; never store OTPs or reset tokens in plaintext.
   - **Notes:** Added the `users` table and generated `0001_create_users.sql`: UUID primary key; optional normalized E.164 phone/email identity channels with unique indexes; channel-verification timestamps; `is_active`; and required timestamps. Database checks require at least one identity channel, enforce normalized identifiers, and prevent a channel from being marked verified without its identifier. Roles, client types, passwords, OTPs, and reset tokens are intentionally absent so one identity can serve resident, staff, and admin clients without storing plaintext credentials. Failure-mode tests run against disposable PostgreSQL and prove duplicate identifiers plus malformed/inconsistent identity states are rejected by named constraints. Also corrected the existing migration smoke test to compare PostgreSQL's applied hash with SHA-256 of the SQL file because Drizzle's journal does not store hashes. Verification: 122/122 unit tests, 17/17 integration tests, typecheck, lint, and production build pass.
 
-- [ ] **Model roles and permissions explicitly.** **Priority:** Critical. **Purpose:** Support strict admin, staff, finance, auditor, and resident access boundaries.
+- [x] **Model roles and permissions explicitly.** **Priority:** Critical. **Purpose:** Support strict admin, staff, finance, auditor, and resident access boundaries.
   - **Security considerations:** Permission assignments need audit logs and should avoid broad super-admin use for routine operations.
+  - **Notes:** Migration `0003_equal_sasquatch.sql` adds role/permission/assignment tables and seeds only the platform `super_admin` role plus the narrowly named SMS-management permission. The model supports later roles without changing authentication tokens or controller authorization boundaries.
 
 - [ ] **Model staff assignments by facility and time range.** **Priority:** Critical. **Purpose:** Enforce server-side facility scope for staff actions and offline sync.
   - **Security considerations:** Check assignment validity for each schedule view, QR validation, and sync pull or push.
@@ -256,9 +259,10 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [ ] **Model notifications.** **Priority:** High. **Purpose:** Track queued, sent, failed, and user-visible notifications for bookings, payments, deadlines, refunds, and staff/admin events.
   - **Dependencies:** Users, reservations, tickets, payments, background workers.
 
-- [ ] **Model immutable audit logs.** **Priority:** Critical. **Purpose:** Record staff scans, admin changes, payment transitions, sync events, permission changes, and security-sensitive actions.
+- [x] **Model immutable audit logs.** **Priority:** Critical. **Purpose:** Record staff scans, admin changes, payment transitions, sync events, permission changes, and security-sensitive actions.
   - **Security considerations:** Audit records must include actor, action, target, before/after summary where appropriate, request metadata, and correlation ID.
   - **Performance considerations:** Partition or archive by time because audit volume can grow quickly.
+  - **Notes:** Added a monthly range-partitioned `audit_logs` parent, current/next partitions plus a default partition, append-only repository, mutation/truncate rejection triggers, sanitized metadata, a command that maintains partitions three months ahead, and `audit:apply-runtime-grants` to enforce SELECT/INSERT-only access for a non-owner production runtime role. SMS creation/revision/activation/deactivation and test request/outcome writes are audited; configuration state and activation audit commit atomically.
 
 - [ ] **Model analytics source facts.** **Priority:** High. **Purpose:** Ensure revenue, usage, attendance, peak time, cancellation, refund, and trend analytics are based on captured backend events.
   - **Performance considerations:** Separate operational writes from analytics aggregation with background jobs or materialized views.
@@ -296,18 +300,22 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [ ] **Implement staff and admin account provisioning policy.** **Priority:** Critical. **Purpose:** Ensure privileged accounts are created, assigned, suspended, and removed through auditable administrative workflows.
   - **Security considerations:** Staff and admin accounts should not self-register into privileged roles; all role grants require audit logs.
 
-- [ ] **Secure OTP handling.** **Priority:** Critical. **Purpose:** Prevent OTP brute force, replay, leakage, and long-lived verification risk.
+- [x] **Secure OTP handling.** **Priority:** Critical. **Purpose:** Prevent OTP brute force, replay, leakage, and long-lived verification risk.
   - **Security considerations:** Hash OTPs, set short expiry, limit attempts per user and IP, delay repeated requests, invalidate used OTPs, and avoid logging OTP values.
   - **Dependencies:** Shared rate limiter, identity table, notification/SMS provider.
+  - **Notes:** Resident OTPs are generated with `crypto.randomInt`, stored only as keyed digests, expire after five minutes, invalidate prior pending challenges, allow five transactional verification attempts, and are consumed under row lock. Redis enforces the 60-second cooldown, three requests/phone/15 minutes, and ten requests/IP/15 minutes. Delivery is isolated behind `OtpDeliveryPort`; failures expose only `SMS_DELIVERY_UNAVAILABLE`.
 
 - [ ] **Secure password handling where passwords are used.** **Priority:** Critical. **Purpose:** Store credentials safely and support forced reset or rotation for compromised accounts.
   - **Security considerations:** Use a modern password hashing algorithm with tuned cost, never store plaintext, and audit password reset events.
+  - **Notes:** This slice secures existing Super Admin credentials with Argon2id, interactive-only provisioning, and dummy verification for unknown accounts. The item remains open because password reset and forced-rotation workflows are not part of the approved backend slice; no privileged self-registration endpoint exists.
 
-- [ ] **Require MFA for administrators.** **Priority:** Critical. **Purpose:** Reduce account takeover risk for high-privilege dashboard users.
+- [x] **Require MFA for administrators.** **Priority:** Critical. **Purpose:** Reduce account takeover risk for high-privilege dashboard users.
   - **Security considerations:** Backup codes and MFA reset flows need strict auditability and approval boundaries.
+  - **Notes:** Super Admin login requires a five-minute Redis challenge followed by TOTP or one-use hashed recovery code. TOTP secrets are AES-256-GCM encrypted with versioned deployment keys; accepted time steps are persisted to reject replay. The provisioning CLI emits the TOTP URI and recovery codes once.
 
-- [ ] **Design access and refresh token lifecycle.** **Priority:** Critical. **Purpose:** Balance mobile usability with revocation, rotation, and client-specific security requirements.
+- [x] **Design access and refresh token lifecycle.** **Priority:** Critical. **Purpose:** Balance mobile usability with revocation, rotation, and client-specific security requirements.
   - **Security considerations:** Use short-lived access tokens, refresh token rotation, device/session tracking, revocation on logout or staff deactivation, and separate token scopes per client type.
+  - **Notes:** Added 15-minute signed JWT access tokens with client audience, 30-day opaque refresh tokens stored only as keyed hashes, client-typed sessions, rotation, reuse-triggered session revocation, inactive-user checks, and explicit session revocation. Super Admin refresh tokens use Secure/HttpOnly/SameSite=Strict cookies plus allowlisted Origin and keyed CSRF tokens.
 
 - [ ] **Implement scoped authorization middleware.** **Priority:** Critical. **Purpose:** Enforce permissions centrally before controllers reach business logic.
   - **Security considerations:** Check actor role, client type, facility scope, ownership, and action-specific permission for every protected endpoint.
@@ -324,11 +332,13 @@ Architecture and design decisions ("define/design" items) are resolved per AIRul
 - [ ] **Protect against XSS in API-fed content.** **Priority:** High. **Purpose:** Prevent stored unsafe content from affecting admin dashboards or mobile clients.
   - **Security considerations:** Validate and sanitize facility descriptions, names, notices, image metadata, and admin-entered content at input and render boundaries.
 
-- [ ] **Protect CSRF-relevant admin flows.** **Priority:** Critical. **Purpose:** Prevent browser-based admin sessions from being abused through cross-site requests.
+- [x] **Protect CSRF-relevant admin flows.** **Priority:** Critical. **Purpose:** Prevent browser-based admin sessions from being abused through cross-site requests.
   - **Security considerations:** Use same-site cookies, CSRF tokens where applicable, origin checks, and avoid unsafe state changes through GET requests.
+  - **Notes:** Super Admin refresh requires the secure host cookie, exact Origin allowlist membership, and a timing-safe CSRF digest check before token rotation. All SMS mutations use non-GET routes and bearer authorization.
 
-- [ ] **Implement CORS policy.** **Priority:** High. **Purpose:** Restrict browser access to approved admin dashboard origins and deployment environments.
+- [x] **Implement CORS policy.** **Priority:** High. **Purpose:** Restrict browser access to approved admin dashboard origins and deployment environments.
   - **Security considerations:** Avoid wildcard origins with credentials and separate dev/staging/prod origins.
+  - **Notes:** Bootstrap enables credentialed CORS only for typed `SUPER_ADMIN_WEB_ORIGINS`; Helmet is installed globally. No wildcard origin is used.
 
 - [ ] **Implement per-endpoint rate limits.** **Priority:** Critical. **Purpose:** Apply tighter controls to expensive or sensitive endpoints while preserving normal usage.
   - **Performance considerations:** Search and availability endpoints need limits that protect database load without blocking ordinary discovery.

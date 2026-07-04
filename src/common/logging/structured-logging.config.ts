@@ -8,9 +8,13 @@ export const REDACTED_LOG_VALUE = '[REDACTED]';
 
 const SENSITIVE_FIELD_NAMES = [
   'accessToken',
+  'apiKey',
+  'apiSecret',
   'address',
   'authorization',
   'cookie',
+  'credentials',
+  'csrfToken',
   'email',
   'firstName',
   'fullName',
@@ -24,9 +28,13 @@ const SENSITIVE_FIELD_NAMES = [
   'phoneNumber',
   'qrSecret',
   'refreshToken',
+  'recoveryCode',
+  'secret',
   'telebirrAppSecret',
   'telebirrRsaPrivateKey',
   'token',
+  'totpSecret',
+  'providerResponse',
 ] as const;
 
 const SENSITIVE_FIELD_NAME_SET = new Set<string>(SENSITIVE_FIELD_NAMES);

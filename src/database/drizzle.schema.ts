@@ -5,6 +5,8 @@ import {
   customType,
   foreignKey,
   index,
+  integer,
+  jsonb,
   pgTable,
   pgEnum,
   primaryKey,
@@ -32,6 +34,49 @@ export const facilityOperationalClassification = pgEnum(
   'facility_operational_classification',
   ['slot_based', 'entrance_based'],
 );
+
+export interface EncryptedFieldPayload {
+  readonly keyId: string;
+  readonly iv: string;
+  readonly ciphertext: string;
+  readonly authTag: string;
+}
+
+export const authenticationClientType = pgEnum('authentication_client_type', [
+  'resident_mobile',
+  'super_admin_web',
+  'city_admin_web',
+  'gate_worker_mobile',
+]);
+export const authenticationSessionStatus = pgEnum(
+  'authentication_session_status',
+  ['active', 'revoked'],
+);
+export const refreshTokenStatus = pgEnum('refresh_token_status', [
+  'active',
+  'rotated',
+  'revoked',
+]);
+export const otpChallengeStatus = pgEnum('otp_challenge_status', [
+  'pending',
+  'consumed',
+  'invalidated',
+  'delivery_failed',
+]);
+export const smsProviderScopeType = pgEnum('sms_provider_scope_type', [
+  'platform',
+  'city',
+]);
+export const smsDeliveryStatus = pgEnum('sms_delivery_status', [
+  'sent',
+  'failed',
+]);
+export const auditActorType = pgEnum('audit_actor_type', [
+  'resident',
+  'staff',
+  'admin',
+  'system',
+]);
 
 /**
  * Client-neutral identity shared by resident, staff, and admin experiences.
@@ -165,4 +210,461 @@ export const facilities = pgTable(
   ],
 );
 
-export const schema = { facilities, facilityTypes, users };
+export const roles = pgTable(
+  'roles',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    code: varchar('code', { length: 80 }).notNull(),
+    name: varchar('name', { length: 120 }).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_roles', columns: [table.id] }),
+    uniqueIndex('uidx_roles__code').on(table.code),
+    check('chk_roles__code_normalized', sql`${table.code} ~ '^[a-z][a-z0-9_]*$'`),
+  ],
+);
+
+export const permissions = pgTable(
+  'permissions',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    code: varchar('code', { length: 120 }).notNull(),
+    name: varchar('name', { length: 160 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_permissions', columns: [table.id] }),
+    uniqueIndex('uidx_permissions__code').on(table.code),
+    check(
+      'chk_permissions__code_normalized',
+      sql`${table.code} ~ '^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*)+$'`,
+    ),
+  ],
+);
+
+export const rolePermissions = pgTable(
+  'role_permissions',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    roleId: uuid('role_id').notNull(),
+    permissionId: uuid('permission_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_role_permissions', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_role_permissions__role_id__roles',
+      columns: [table.roleId],
+      foreignColumns: [roles.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'fk_role_permissions__permission_id__permissions',
+      columns: [table.permissionId],
+      foreignColumns: [permissions.id],
+    }).onDelete('cascade'),
+    uniqueIndex('uidx_role_permissions__role_id_permission_id').on(
+      table.roleId,
+      table.permissionId,
+    ),
+  ],
+);
+
+export const userRoles = pgTable(
+  'user_roles',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    userId: uuid('user_id').notNull(),
+    roleId: uuid('role_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_user_roles', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_user_roles__user_id__users',
+      columns: [table.userId],
+      foreignColumns: [users.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'fk_user_roles__role_id__roles',
+      columns: [table.roleId],
+      foreignColumns: [roles.id],
+    }).onDelete('restrict'),
+    uniqueIndex('uidx_user_roles__user_id_role_id').on(table.userId, table.roleId),
+  ],
+);
+
+export const passwordCredentials = pgTable(
+  'password_credentials',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    userId: uuid('user_id').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_password_credentials', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_password_credentials__user_id__users',
+      columns: [table.userId],
+      foreignColumns: [users.id],
+    }).onDelete('cascade'),
+    uniqueIndex('uidx_password_credentials__user_id').on(table.userId),
+  ],
+);
+
+export const totpFactors = pgTable(
+  'totp_factors',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    userId: uuid('user_id').notNull(),
+    encryptedSecret: jsonb('encrypted_secret').$type<EncryptedFieldPayload>().notNull(),
+    lastAcceptedTimeStep: integer('last_accepted_time_step'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_totp_factors', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_totp_factors__user_id__users',
+      columns: [table.userId],
+      foreignColumns: [users.id],
+    }).onDelete('cascade'),
+    uniqueIndex('uidx_totp_factors__user_id').on(table.userId),
+  ],
+);
+
+export const totpRecoveryCodes = pgTable(
+  'totp_recovery_codes',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    totpFactorId: uuid('totp_factor_id').notNull(),
+    codeHash: varchar('code_hash', { length: 64 }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_totp_recovery_codes', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_totp_recovery_codes__totp_factor_id__totp_factors',
+      columns: [table.totpFactorId],
+      foreignColumns: [totpFactors.id],
+    }).onDelete('cascade'),
+    uniqueIndex('uidx_totp_recovery_codes__totp_factor_id_code_hash').on(
+      table.totpFactorId,
+      table.codeHash,
+    ),
+  ],
+);
+
+export const authenticationSessions = pgTable(
+  'authentication_sessions',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    userId: uuid('user_id').notNull(),
+    clientType: authenticationClientType('client_type').notNull(),
+    sessionStatus: authenticationSessionStatus('session_status')
+      .default('active')
+      .notNull(),
+    deviceName: varchar('device_name', { length: 120 }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_authentication_sessions', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_authentication_sessions__user_id__users',
+      columns: [table.userId],
+      foreignColumns: [users.id],
+    }).onDelete('cascade'),
+    index('idx_authentication_sessions__user_id_session_status').on(
+      table.userId,
+      table.sessionStatus,
+    ),
+  ],
+);
+
+export const refreshTokens = pgTable(
+  'refresh_tokens',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    authenticationSessionId: uuid('authentication_session_id').notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    refreshTokenStatus: refreshTokenStatus('refresh_token_status')
+      .default('active')
+      .notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    rotatedAt: timestamp('rotated_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_refresh_tokens', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_refresh_tokens__authentication_session_id__authentication_sessions',
+      columns: [table.authenticationSessionId],
+      foreignColumns: [authenticationSessions.id],
+    }).onDelete('cascade'),
+    uniqueIndex('uidx_refresh_tokens__token_hash').on(table.tokenHash),
+    index('idx_refresh_tokens__authentication_session_id_status').on(
+      table.authenticationSessionId,
+      table.refreshTokenStatus,
+    ),
+  ],
+);
+
+export const otpChallenges = pgTable(
+  'otp_challenges',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    phoneNumber: varchar('phone_number', { length: 16 }).notNull(),
+    codeDigest: varchar('code_digest', { length: 64 }).notNull(),
+    challengeStatus: otpChallengeStatus('challenge_status').default('pending').notNull(),
+    attemptCount: integer('attempt_count').default(0).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date' }),
+    invalidatedAt: timestamp('invalidated_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_otp_challenges', columns: [table.id] }),
+    index('idx_otp_challenges__phone_number_status_created_at').on(
+      table.phoneNumber,
+      table.challengeStatus,
+      table.createdAt,
+    ),
+    check('chk_otp_challenges__attempt_count_range', sql`${table.attemptCount} between 0 and 5`),
+  ],
+);
+
+export const smsProviderConfigurations = pgTable(
+  'sms_provider_configurations',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    scopeType: smsProviderScopeType('scope_type').default('platform').notNull(),
+    scopeId: uuid('scope_id'),
+    providerKey: varchar('provider_key', { length: 80 }).notNull(),
+    displayName: varchar('display_name', { length: 120 }).notNull(),
+    apiUrl: text('api_url'),
+    encryptedCredentials: jsonb('encrypted_credentials')
+      .$type<EncryptedFieldPayload>()
+      .notNull(),
+    senderId: varchar('sender_id', { length: 40 }),
+    timeoutMs: integer('timeout_ms').default(10_000).notNull(),
+    retryCount: integer('retry_count').default(1).notNull(),
+    isEnabled: boolean('is_enabled').default(false).notNull(),
+    isActive: boolean('is_active').default(false).notNull(),
+    revision: integer('revision').default(1).notNull(),
+    lastSuccessfulTestRevision: integer('last_successful_test_revision'),
+    activatedAt: timestamp('activated_at', { withTimezone: true, mode: 'date' }),
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true, mode: 'date' }),
+    createdByUserId: uuid('created_by_user_id').notNull(),
+    updatedByUserId: uuid('updated_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_sms_provider_configurations', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_sms_provider_configurations__created_by_user_id__users',
+      columns: [table.createdByUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_sms_provider_configurations__updated_by_user_id__users',
+      columns: [table.updatedByUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    uniqueIndex('uidx_sms_provider_configurations__scope_provider_revision').on(
+      table.scopeType,
+      sql`coalesce(${table.scopeId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      table.providerKey,
+      table.revision,
+    ),
+    uniqueIndex('uidx_sms_provider_configurations__active_scope')
+      .on(
+        table.scopeType,
+        sql`coalesce(${table.scopeId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
+      )
+      .where(sql`${table.isActive} = true`),
+    check(
+      'chk_sms_provider_configurations__scope_shape',
+      sql`(${table.scopeType} = 'platform' and ${table.scopeId} is null) or (${table.scopeType} = 'city' and ${table.scopeId} is not null)`,
+    ),
+    check('chk_sms_provider_configurations__timeout_range', sql`${table.timeoutMs} between 1000 and 30000`),
+    check('chk_sms_provider_configurations__retry_range', sql`${table.retryCount} between 0 and 3`),
+    check('chk_sms_provider_configurations__revision_positive', sql`${table.revision} > 0`),
+  ],
+);
+
+export const smsProviderTests = pgTable(
+  'sms_provider_tests',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    smsProviderConfigurationId: uuid('sms_provider_configuration_id').notNull(),
+    configurationRevision: integer('configuration_revision').notNull(),
+    destinationHash: varchar('destination_hash', { length: 64 }).notNull(),
+    destinationMasked: varchar('destination_masked', { length: 24 }).notNull(),
+    isSuccessful: boolean('is_successful').notNull(),
+    errorCode: varchar('error_code', { length: 80 }),
+    durationMs: integer('duration_ms').notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_sms_provider_tests', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_sms_provider_tests__sms_provider_configuration_id__sms_provider_configurations',
+      columns: [table.smsProviderConfigurationId],
+      foreignColumns: [smsProviderConfigurations.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_sms_provider_tests__actor_user_id__users',
+      columns: [table.actorUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+  ],
+);
+
+export const smsDeliveryAttempts = pgTable(
+  'sms_delivery_attempts',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    smsProviderConfigurationId: uuid('sms_provider_configuration_id').notNull(),
+    providerKey: varchar('provider_key', { length: 80 }).notNull(),
+    purpose: varchar('purpose', { length: 40 }).notNull(),
+    destinationHash: varchar('destination_hash', { length: 64 }).notNull(),
+    deliveryStatus: smsDeliveryStatus('delivery_status').notNull(),
+    providerMessageId: varchar('provider_message_id', { length: 160 }),
+    errorCode: varchar('error_code', { length: 80 }),
+    attemptNumber: integer('attempt_number').notNull(),
+    correlationId: uuid('correlation_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_sms_delivery_attempts', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_sms_delivery_attempts__sms_provider_configuration_id__sms_provider_configurations',
+      columns: [table.smsProviderConfigurationId],
+      foreignColumns: [smsProviderConfigurations.id],
+    }).onDelete('restrict'),
+    index('idx_sms_delivery_attempts__configuration_created_at').on(
+      table.smsProviderConfigurationId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    actorType: auditActorType('actor_type').notNull(),
+    actorId: uuid('actor_id'),
+    action: varchar('action', { length: 120 }).notNull(),
+    targetType: varchar('target_type', { length: 80 }).notNull(),
+    targetId: uuid('target_id'),
+    correlationId: uuid('correlation_id'),
+    requestIpHash: varchar('request_ip_hash', { length: 64 }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_audit_logs', columns: [table.id, table.createdAt] }),
+    index('idx_audit_logs__actor_id_created_at').on(table.actorId, table.createdAt),
+    index('idx_audit_logs__target_type_target_id_created_at').on(
+      table.targetType,
+      table.targetId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const schema = {
+  auditLogs,
+  authenticationSessions,
+  facilities,
+  facilityTypes,
+  otpChallenges,
+  passwordCredentials,
+  permissions,
+  refreshTokens,
+  rolePermissions,
+  roles,
+  smsDeliveryAttempts,
+  smsProviderConfigurations,
+  smsProviderTests,
+  totpFactors,
+  totpRecoveryCodes,
+  userRoles,
+  users,
+};

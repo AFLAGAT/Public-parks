@@ -65,6 +65,10 @@ describe('structured logging configuration', () => {
       {
         password: 'resident-password',
         auth: { accessToken: 'access-token' },
+        sms: {
+          credentials: { apiKey: 'provider-api-key' },
+          providerResponse: 'raw-provider-response',
+        },
         payment: { provider: { paymentSecret: 'payment-secret' } },
         resident: {
           profile: {
@@ -84,6 +88,10 @@ describe('structured logging configuration', () => {
     const entry = JSON.parse(lines[0]) as Record<string, unknown>;
     expect(entry.password).toBe(REDACTED_LOG_VALUE);
     expect(entry.auth).toEqual({ accessToken: REDACTED_LOG_VALUE });
+    expect(entry.sms).toEqual({
+      credentials: REDACTED_LOG_VALUE,
+      providerResponse: REDACTED_LOG_VALUE,
+    });
     expect(entry.payment).toEqual({
       provider: { paymentSecret: REDACTED_LOG_VALUE },
     });
@@ -102,5 +110,7 @@ describe('structured logging configuration', () => {
     expect(lines[0]).not.toContain('access-token');
     expect(lines[0]).not.toContain('+251900000000');
     expect(lines[0]).not.toContain('refresh-token');
+    expect(lines[0]).not.toContain('provider-api-key');
+    expect(lines[0]).not.toContain('raw-provider-response');
   });
 });

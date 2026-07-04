@@ -69,13 +69,13 @@ describe('authentication middleware skeleton (e2e)', () => {
     });
   });
 
-  it('does not accept an arbitrary bearer token before a verifier establishes an actor', async () => {
+  it('rejects an arbitrary bearer token during verification', async () => {
     const response = await fetch(`${baseUrl}/auth-fixture/protected`, {
       headers: { authorization: 'Bearer attacker-controlled-token' },
     });
 
     expect(response.status).toBe(401);
     const body = (await response.json()) as { error: { code: string } };
-    expect(body.error.code).toBe(ErrorCode.AUTHENTICATION_REQUIRED);
+    expect(body.error.code).toBe(ErrorCode.AUTHENTICATION_FAILED);
   });
 });

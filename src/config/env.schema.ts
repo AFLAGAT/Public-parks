@@ -24,6 +24,77 @@ const dbEnvSchema = z.object({
     ),
 });
 
+const redisEnvSchema = z.object({
+  REDIS_URL: z
+    .string()
+    .min(1, 'REDIS_URL is required')
+    .refine(
+      (value) => value.startsWith('redis://') || value.startsWith('rediss://'),
+      { message: 'REDIS_URL must be a redis:// or rediss:// connection string' },
+    )
+    .default('redis://localhost:6379/0'),
+});
+
+const DEVELOPMENT_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+const DEVELOPMENT_KEY_RING = `{"dev-v1":"${DEVELOPMENT_KEY}"}`;
+
+const base64KeySchema = z.string().refine((value) => {
+  try {
+    return Buffer.from(value, 'base64').length === 32;
+  } catch {
+    return false;
+  }
+}, 'Key must be a base64-encoded 32-byte value.');
+
+const keyRingSchema = z.string().superRefine((value, context) => {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    const result = z.record(z.string().min(1), base64KeySchema).safeParse(parsed);
+    if (!result.success || Object.keys(result.data).length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Key ring must be a non-empty JSON object of base64 32-byte keys.',
+      });
+    }
+  } catch {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Key ring must be valid JSON.',
+    });
+  }
+});
+
+const securityEnvSchema = z.object({
+  AUTH_JWT_KEYS_JSON: keyRingSchema.default(DEVELOPMENT_KEY_RING),
+  AUTH_JWT_ACTIVE_KEY_ID: z.string().min(1).max(80).default('dev-v1'),
+  AUTH_OTP_HASH_KEY: base64KeySchema.default(DEVELOPMENT_KEY),
+  AUTH_TOKEN_HASH_KEY: base64KeySchema.default(DEVELOPMENT_KEY),
+  AUTH_CSRF_KEY: base64KeySchema.default(DEVELOPMENT_KEY),
+  APP_FIELD_ENCRYPTION_KEYS_JSON: keyRingSchema.default(DEVELOPMENT_KEY_RING),
+  APP_FIELD_ENCRYPTION_ACTIVE_KEY_ID: z.string().min(1).max(80).default('dev-v1'),
+  SUPER_ADMIN_WEB_ORIGINS: z
+    .string()
+    .min(1)
+    .superRefine((value, context) => {
+      for (const origin of value.split(',').map((entry) => entry.trim())) {
+        try {
+          const parsed = new URL(origin);
+          if (parsed.origin !== origin || !['http:', 'https:'].includes(parsed.protocol)) {
+            throw new Error('Invalid origin');
+          }
+        } catch {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'SUPER_ADMIN_WEB_ORIGINS must contain comma-separated HTTP(S) origins without paths or wildcards.',
+          });
+          break;
+        }
+      }
+    })
+    .default('http://localhost:3001'),
+  DEV_SMS_INBOX_TOKEN: z.string().max(512).default(''),
+});
+
 /**
  * Coerces a boolean-compatible value from supported forms:
  *   boolean: true, false
@@ -46,7 +117,31 @@ const docsEnvSchema = z.object({
   APP_ENABLE_DOCS: coerceBoolean.default(false),
 });
 
-export const envSchema = appEnvSchema.merge(logEnvSchema).merge(dbEnvSchema).merge(docsEnvSchema);
+export const envSchema = appEnvSchema
+  .merge(logEnvSchema)
+  .merge(dbEnvSchema)
+  .merge(redisEnvSchema)
+  .merge(securityEnvSchema)
+  .merge(docsEnvSchema)
+  .superRefine((env, context) => {
+    for (const [ringField, activeField] of [
+      ['AUTH_JWT_KEYS_JSON', 'AUTH_JWT_ACTIVE_KEY_ID'],
+      ['APP_FIELD_ENCRYPTION_KEYS_JSON', 'APP_FIELD_ENCRYPTION_ACTIVE_KEY_ID'],
+    ] as const) {
+      try {
+        const ring = JSON.parse(env[ringField]) as Record<string, unknown>;
+        if (!(env[activeField] in ring)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [activeField],
+            message: `${activeField} must identify a key in ${ringField}.`,
+          });
+        }
+      } catch {
+        // The field-local key-ring validation reports malformed JSON.
+      }
+    }
+  });
 export type Env = z.infer<typeof envSchema>;
 
 /**
@@ -66,6 +161,10 @@ export interface SecretRegistryEntry {
 
 export const SECRET_REGISTRY: readonly SecretRegistryEntry[] = [
   {
+    key: 'AUTH_JWT_KEYS_JSON',
+    devPlaceholders: [DEVELOPMENT_KEY_RING],
+  },
+  {
     // Catch a copy-pasted local-dev DB URL landing in staging/production.
     // Both the project's docker-compose URL and the Postgres default URL are
     // listed; matching is exact-string. The DEV_INFRA_REGISTRY entry below
@@ -77,6 +176,22 @@ export const SECRET_REGISTRY: readonly SecretRegistryEntry[] = [
       'postgresql://parks:parks_dev@localhost:5432/parks_dev',
       'postgres://postgres:postgres@localhost:5432/postgres',
     ],
+  },
+  {
+    key: 'AUTH_OTP_HASH_KEY',
+    devPlaceholders: ['AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='],
+  },
+  {
+    key: 'AUTH_TOKEN_HASH_KEY',
+    devPlaceholders: ['AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='],
+  },
+  {
+    key: 'AUTH_CSRF_KEY',
+    devPlaceholders: ['AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='],
+  },
+  {
+    key: 'APP_FIELD_ENCRYPTION_KEYS_JSON',
+    devPlaceholders: [DEVELOPMENT_KEY_RING],
   },
 ];
 
@@ -122,6 +237,10 @@ export interface DevInfraRegistryEntry {
 export const DEV_INFRA_REGISTRY: readonly DevInfraRegistryEntry[] = [
   {
     key: 'DB_PRIMARY_URL',
+    patterns: [/localhost/i, /127\.0\.0\.1/, /host\.docker\.internal/i],
+  },
+  {
+    key: 'REDIS_URL',
     patterns: [/localhost/i, /127\.0\.0\.1/, /host\.docker\.internal/i],
   },
 ];

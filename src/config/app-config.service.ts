@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AppNodeEnv, Env } from './env.schema';
 
 @Injectable()
 export class AppConfigService {
-  constructor(private readonly config: ConfigService<Env, true>) {}
+  constructor(
+    @Inject(ConfigService) private readonly config: ConfigService<Env, true>,
+  ) {}
 
   get nodeEnv(): AppNodeEnv {
     return this.config.get('APP_NODE_ENV', { infer: true });

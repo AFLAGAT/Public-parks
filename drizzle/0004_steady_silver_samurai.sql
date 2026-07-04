@@ -1,0 +1,2 @@
+ALTER TABLE "sms_provider_configurations" ADD COLUMN "activated_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "sms_provider_configurations" ADD COLUMN "deactivated_at" timestamp with time zone;

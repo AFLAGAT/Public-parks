@@ -10,13 +10,13 @@ import {
 
 const VALID_DB_URL = 'postgres://parks:parks_dev@localhost:5432/parks_dev';
 
-const baseEnv: Env = {
+const baseEnv: Env = validateEnv({
   APP_NODE_ENV: 'development',
   APP_PORT: 3000,
   LOG_LEVEL: 'info',
   DB_PRIMARY_URL: VALID_DB_URL,
   APP_ENABLE_DOCS: false,
-};
+});
 
 describe('validateEnv', () => {
   it('parses a minimal valid env and applies defaults', () => {
@@ -45,6 +45,21 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ APP_NODE_ENV: 'qa', DB_PRIMARY_URL: VALID_DB_URL })).toThrow(
       /APP_NODE_ENV/,
     );
+  });
+
+  it('accepts only exact HTTP(S) origins for the Super Admin web client', () => {
+    expect(
+      validateEnv({
+        ...baseEnv,
+        SUPER_ADMIN_WEB_ORIGINS: 'https://admin.example.com,http://localhost:3001',
+      }).SUPER_ADMIN_WEB_ORIGINS,
+    ).toBe('https://admin.example.com,http://localhost:3001');
+    expect(() =>
+      validateEnv({
+        ...baseEnv,
+        SUPER_ADMIN_WEB_ORIGINS: 'https://admin.example.com/path,*',
+      }),
+    ).toThrow(/SUPER_ADMIN_WEB_ORIGINS/);
   });
 
   it('rejects a non-numeric APP_PORT', () => {

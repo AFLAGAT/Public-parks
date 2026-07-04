@@ -15,10 +15,14 @@ import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
 import { SyncModule } from './sync/sync.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { DocsModule } from './docs/docs.module';
+import { RedisModule } from './common/redis/redis.module';
+import { SecurityModule } from './common/security/security.module';
 
 @Module({
   imports: [
     ConfigModule,
+    RedisModule,
+    SecurityModule,
     LoggingModule,
     ErrorsModule,
     ValidationModule,

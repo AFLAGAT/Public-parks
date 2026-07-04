@@ -22,6 +22,20 @@
       "when": 1782983206988,
       "tag": "0002_create_facilities",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783144063403,
+      "tag": "0003_equal_sasquatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783145293701,
+      "tag": "0004_steady_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

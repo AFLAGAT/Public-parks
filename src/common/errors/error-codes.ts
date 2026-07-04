@@ -30,6 +30,7 @@ export const ErrorCode = {
   // Server / infrastructure (5xx)
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  SMS_DELIVERY_UNAVAILABLE: 'SMS_DELIVERY_UNAVAILABLE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -62,6 +63,7 @@ export const ERROR_CODE_HTTP_STATUS: Readonly<Record<ErrorCode, HttpStatus>> = {
   [ErrorCode.RATE_LIMIT_EXCEEDED]: HttpStatus.TOO_MANY_REQUESTS,
   [ErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
   [ErrorCode.SERVICE_UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
+  [ErrorCode.SMS_DELIVERY_UNAVAILABLE]: HttpStatus.SERVICE_UNAVAILABLE,
 };
 
 /**

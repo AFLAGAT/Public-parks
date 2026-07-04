@@ -4,6 +4,32 @@ import { type ConfigService } from '@nestjs/config';
 import { AppConfigService } from './app-config.service';
 import type { Env } from './env.schema';
 
+const securityEnv: Pick<
+  Env,
+  | 'REDIS_URL'
+  | 'AUTH_JWT_KEYS_JSON'
+  | 'AUTH_JWT_ACTIVE_KEY_ID'
+  | 'AUTH_OTP_HASH_KEY'
+  | 'AUTH_TOKEN_HASH_KEY'
+  | 'AUTH_CSRF_KEY'
+  | 'APP_FIELD_ENCRYPTION_KEYS_JSON'
+  | 'APP_FIELD_ENCRYPTION_ACTIVE_KEY_ID'
+  | 'SUPER_ADMIN_WEB_ORIGINS'
+  | 'DEV_SMS_INBOX_TOKEN'
+> = {
+  REDIS_URL: 'rediss://redis.internal:6379/0',
+  AUTH_JWT_KEYS_JSON: '{"v1":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="}',
+  AUTH_JWT_ACTIVE_KEY_ID: 'v1',
+  AUTH_OTP_HASH_KEY: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
+  AUTH_TOKEN_HASH_KEY: 'AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
+  AUTH_CSRF_KEY: 'AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=',
+  APP_FIELD_ENCRYPTION_KEYS_JSON:
+    '{"v1":"BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ="}',
+  APP_FIELD_ENCRYPTION_ACTIVE_KEY_ID: 'v1',
+  SUPER_ADMIN_WEB_ORIGINS: 'https://admin.example.com',
+  DEV_SMS_INBOX_TOKEN: '',
+};
+
 function makeConfig(env: Env): ConfigService<Env, true> {
   return {
     get: <K extends keyof Env>(key: K): Env[K] => env[key],
@@ -14,6 +40,7 @@ describe('AppConfigService', () => {
   it('exposes typed getters that proxy ConfigService', () => {
     const service = new AppConfigService(
       makeConfig({
+        ...securityEnv,
         APP_NODE_ENV: 'production',
         APP_PORT: 8080,
         LOG_LEVEL: 'warn',
@@ -33,6 +60,7 @@ describe('AppConfigService', () => {
   it('reports isTest when APP_NODE_ENV is test', () => {
     const service = new AppConfigService(
       makeConfig({
+        ...securityEnv,
         APP_NODE_ENV: 'test',
         APP_PORT: 3000,
         LOG_LEVEL: 'info',
@@ -48,6 +76,7 @@ describe('AppConfigService', () => {
   it('returns enableDocs from APP_ENABLE_DOCS env', () => {
     const service = new AppConfigService(
       makeConfig({
+        ...securityEnv,
         APP_NODE_ENV: 'development',
         APP_PORT: 3000,
         LOG_LEVEL: 'info',

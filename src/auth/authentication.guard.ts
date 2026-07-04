@@ -25,9 +25,8 @@ export class AuthenticationGuard implements CanActivate {
       return true;
     }
 
-    // Raw credentials are deliberately not interpreted here. Phase 4's token
-    // verifier must validate them and assign an actor before this guard allows
-    // a protected request. This keeps the skeleton fail-closed in the meantime.
+    // Raw credentials are deliberately not interpreted here. AccessTokenGuard
+    // runs first and assigns an actor only after JWT and live-session checks.
     throw new AuthenticationRequiredException();
   }
 }

@@ -20,6 +20,18 @@ function makeConfigService(overrides: Partial<Env> = {}): AppConfigService {
     APP_PORT: 3000,
     LOG_LEVEL: 'info',
     DB_PRIMARY_URL: 'postgres://parks:parks_dev@localhost:5432/parks_dev',
+    REDIS_URL: 'redis://localhost:6379/0',
+    AUTH_JWT_KEYS_JSON:
+      '{"dev-v1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}',
+    AUTH_JWT_ACTIVE_KEY_ID: 'dev-v1',
+    AUTH_OTP_HASH_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    AUTH_TOKEN_HASH_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    AUTH_CSRF_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+    APP_FIELD_ENCRYPTION_KEYS_JSON:
+      '{"dev-v1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}',
+    APP_FIELD_ENCRYPTION_ACTIVE_KEY_ID: 'dev-v1',
+    SUPER_ADMIN_WEB_ORIGINS: 'http://localhost:3001',
+    DEV_SMS_INBOX_TOKEN: '',
     APP_ENABLE_DOCS: false,
   };
   const env = { ...defaults, ...overrides };

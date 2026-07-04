@@ -37,6 +37,7 @@ import { resolve } from 'path';
 import { randomBytes } from 'crypto';
 import { validateTestDatabaseUrl } from './helpers/test-database.guard';
 import { Pool } from 'pg';
+import { createClient } from 'redis';
 
 const PROJECT_ROOT = resolve(__dirname, '../..');
 const COMPOSE_FILE = resolve(PROJECT_ROOT, 'docker-compose.test.yml');
@@ -78,6 +79,15 @@ function resolveTestDbPort(): number {
   return port;
 }
 
+function resolveTestRedisPort(): number {
+  const raw = process.env.TEST_REDIS_PORT || '6380';
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid TEST_REDIS_PORT: ${raw}`);
+  }
+  return port;
+}
+
 // --- State ---
 
 let teardownCalled = false;
@@ -85,6 +95,7 @@ let activeChild: ReturnType<typeof spawn> | null = null;
 let composeProjectName: string;
 let testDbPort: number;
 let dbUrl: string;
+let redisUrl: string;
 
 
 // --- Signal handlers ---
@@ -151,6 +162,7 @@ function runCommand(
         ...process.env,
         APP_NODE_ENV: 'test',
         DB_PRIMARY_URL: dbUrl,
+        REDIS_URL: redisUrl,
         ...extraEnv,
       },
     });
@@ -172,6 +184,27 @@ function runCommand(
       resolvePromise({ exitCode: 1, signal: null });
     });
   });
+}
+
+async function waitForRedis(maxRetries = 30, intervalMs = 2000): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    const client = createClient({ url: redisUrl });
+    client.on('error', () => undefined);
+    try {
+      await client.connect();
+      await client.ping();
+      await client.close();
+      log('Redis is ready.');
+      return;
+    } catch {
+      if (client.isOpen) await client.close().catch(() => undefined);
+      if (attempt < maxRetries) {
+        log(`Waiting for Redis (attempt ${attempt}/${maxRetries})...`);
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, intervalMs));
+      }
+    }
+  }
+  throw new Error('Redis did not become healthy before the integration test timeout.');
 }
 
 /**
@@ -262,11 +295,14 @@ async function main(): Promise<void> {
   // Resolve config and validate early
   composeProjectName = resolveProjectName();
   testDbPort = resolveTestDbPort();
+  const testRedisPort = resolveTestRedisPort();
   dbUrl = `postgres://parks:parks_test@localhost:${String(testDbPort)}/parks_test`;
+  redisUrl = `redis://localhost:${String(testRedisPort)}/1`;
 
   // Set env vars BEFORE anything else — guard and migration both read process.env
   process.env.APP_NODE_ENV = 'test';
   process.env.DB_PRIMARY_URL = dbUrl;
+  process.env.REDIS_URL = redisUrl;
 
   log(`Compose project: ${composeProjectName}`);
   log(`Test DB port: ${testDbPort}`);
@@ -318,6 +354,7 @@ async function main(): Promise<void> {
     // Step 3: Wait for health
     log('Waiting for database to become healthy...');
     await waitForDatabase();
+    await waitForRedis();
 
     // Step 4: Run the safety guard (reads process.env which we already set)
     log('Validating test database URL...');

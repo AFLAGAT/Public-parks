@@ -23,7 +23,13 @@ describe('AuthenticationGuard', () => {
 
   it('allows a protected handler after trusted authentication assigns an actor', () => {
     const request = {};
-    assignAuthenticatedActor(request, { actorId: 'resident-123' });
+    assignAuthenticatedActor(request, {
+      actorId: 'resident-123',
+      sessionId: 'session-123',
+      clientType: 'resident_mobile',
+      roleCodes: [],
+      permissionCodes: [],
+    });
 
     expect(guard.canActivate(createExecutionContext(request))).toBe(true);
   });

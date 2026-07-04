@@ -49,6 +49,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 - [Testing framework — remediation (Phase 2 verification)](phase-02.md#testing-framework--remediation-phase-2-verification) — orchestration hardening (no shell interpolation, port validation, unique Compose project, signal handling, idempotent teardown), database guard hardening (URL constructor, 0.0.0.0 rejection, spoofed-name rejection, credential redaction), guard test expansion (27 tests), Vitest setup file, Drizzle client smoke test with `__drizzle_migrations` hash verification, tsconfig/build boundaries, fixture documentation corrections (PoolClient transaction isolation, DDL transactional correction).
 - [Create standard request validation layer](phase-02.md#create-standard-request-validation-layer) — global Zod pipe + exception filter, createZodDto, strict unknown-field rejection, canonical VALIDATION_FAILED envelope.
 - [Create standard response and pagination helpers](phase-02.md#create-standard-response-and-pagination-helpers) — bounded `pageSize`, versioned endpoint-validated Base64URL cursors, and fetch-one-extra `{ data, pagination }` response construction.
+- [Add Redis, security key rings, and provider boundaries](phase-02.md#add-redis-security-key-rings-and-provider-boundaries) — shared Redis controls, typed secret key rings, AES-GCM fields, Helmet/CORS, and auth's narrow OTP delivery port.
 - [Create structured logging foundation](phase-02.md#create-structured-logging-foundation) — global Pino JSON logging, safe correlation-ID propagation, minimal HTTP metadata, status-aware levels, typed operational context, and logger-level sensitive-field redaction.
 - [Create centralized error handling](phase-02.md#create-centralized-error-handling) — single global `AllExceptionsFilter` + stable `ErrorCode` taxonomy + `ApplicationException` base rendering the canonical envelope for validation/application/framework/unknown failures; superseded and removed the per-exception validation filter.
 - [Set up authentication middleware skeleton](phase-02.md#set-up-authentication-middleware-skeleton) — global default-deny `AuthenticationGuard`, explicit `@Public()` allowlist, server-owned authenticated-actor request context, and critical failure-mode coverage for anonymous, arbitrary-bearer, and request-property spoofing attempts.
@@ -57,14 +58,17 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 
 - [Model users with client-neutral identity](phase-03.md#model-users-with-client-neutral-identity) — shared UUID identity with normalized unique phone/email channels, verification-state constraints, no embedded roles/clients/credentials, and real PostgreSQL failure-mode coverage.
 - [Model facilities with operational classification](phase-03.md#model-facilities-with-operational-classification) — facility-type-owned slot/entrance classification, SRID-enforced PostGIS points, meter-based GiST discovery index, and real geospatial/constraint tests.
+- [Model authentication, SMS revisions, and immutable audit records](phase-03.md#model-authentication-sms-revisions-and-immutable-audit-records) — credential/session/RBAC tables, scope-ready SMS revision state, and monthly append-only audit partitions.
 
 ## Phase 4 — Authentication and Security
 
-- _(no entries yet)_
+- [Implement resident OTP and Super Admin MFA authentication](phase-04.md#implement-resident-otp-and-super-admin-mfa-authentication) — digest-only OTPs, Redis abuse controls, MFA/recovery replay defense, client-scoped JWT/refresh rotation, CSRF, and revocation.
+- [Implement provider-agnostic SMS security](phase-04.md#implement-provider-agnostic-sms-security) — encrypted revisioned configuration, exact-revision tests, safe retries/timeouts, production fail-closed behavior, and protected development inbox.
 
 ## Phase 5 — APIs
 
 - [Build facility discovery API core](phase-05.md#build-facility-discovery-api-core) — public text/type/nearby discovery and detail routes with strict validation, PostGIS radius ordering, filter-bound cursor pagination, and inactive-record hiding.
+- [Build authentication and Super Admin SMS APIs](phase-05.md#build-authentication-and-super-admin-sms-apis) — resident/Super Admin session routes plus Super Admin-only provider configuration, revision, test, activation, and deactivation endpoints.
 
 ## Phase 6 — Business Logic
 
