@@ -104,6 +104,39 @@ export const entranceTicketStatus = pgEnum('entrance_ticket_status', [
   'refunded',
   'disputed',
 ]);
+export const paymentPayableType = pgEnum('payment_payable_type', [
+  'slot_reservation',
+  'entrance_ticket',
+  'shared_participant_payment',
+]);
+export const paymentStatus = pgEnum('payment_status', [
+  'pending',
+  'initiated',
+  'provider_confirmed',
+  'verified',
+  'failed',
+  'expired',
+  'refunded',
+  'partially_refunded',
+  'disputed',
+]);
+export const paymentAttemptStatus = pgEnum('payment_attempt_status', [
+  'initiated',
+  'succeeded',
+  'failed',
+  'expired',
+]);
+export const webhookVerificationResult = pgEnum('webhook_verification_result', [
+  'verified',
+  'signature_invalid',
+  'unrecognized',
+  'duplicate',
+]);
+export const webhookProcessingStatus = pgEnum('webhook_processing_status', [
+  'received',
+  'processed',
+  'rejected',
+]);
 
 /**
  * Client-neutral identity shared by resident, staff, and admin experiences.
@@ -536,6 +569,182 @@ export const entranceTickets = pgTable(
     check(
       'chk_entrance_tickets__total_matches_quantity',
       sql`${table.totalAmountAtBooking} = ${table.unitPriceAtBooking} * ${table.quantity}`,
+    ),
+  ],
+);
+
+/**
+ * Payment aggregate: one per payable. References the paid-for entity through the
+ * polymorphic `payable_type` / `payable_id` pair (validated in the service
+ * layer, not a DB foreign key). Money is integer santim, ETB platform-wide.
+ * `amount`, `payable_type`, `payable_id`, and `payer_user_id` are write-once —
+ * a database trigger (added in the migration) rejects any UPDATE to them so a
+ * confirmed payment's amount or target can never be mutated after creation.
+ * Retries are recorded as `payment_attempts`, not new payment rows.
+ */
+export const payments = pgTable(
+  'payments',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    payableType: paymentPayableType('payable_type').notNull(),
+    payableId: uuid('payable_id').notNull(),
+    payerUserId: uuid('payer_user_id').notNull(),
+    amount: bigint('amount', { mode: 'number' }).notNull(),
+    refundedAmount: bigint('refunded_amount', { mode: 'number' }).default(0).notNull(),
+    paymentStatus: paymentStatus('payment_status').default('pending').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    verifiedAt: timestamp('verified_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_payments', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_payments__payer_user_id__users',
+      columns: [table.payerUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    uniqueIndex('uidx_payments__payable_type_payable_id').on(
+      table.payableType,
+      table.payableId,
+    ),
+    check('chk_payments__amount_nonnegative', sql`${table.amount} >= 0`),
+    check(
+      'chk_payments__refunded_amount_bounds',
+      sql`${table.refundedAmount} >= 0 and ${table.refundedAmount} <= ${table.amount}`,
+    ),
+  ],
+);
+
+/**
+ * One row per attempt to charge a payment through a provider (mock now, Telebirr
+ * in Phase 7). Preserves retry history, provider references, and failure reasons
+ * separately from the payment aggregate so evidence is never overwritten. Each
+ * attempt carries a globally unique `merchant_reference` (our order id) and, once
+ * the provider responds, a unique `provider_transaction_id`.
+ */
+export const paymentAttempts = pgTable(
+  'payment_attempts',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    paymentId: uuid('payment_id').notNull(),
+    attemptNumber: integer('attempt_number').notNull(),
+    providerKey: varchar('provider_key', { length: 80 }).notNull(),
+    merchantReference: varchar('merchant_reference', { length: 160 }).notNull(),
+    providerTransactionId: varchar('provider_transaction_id', { length: 160 }),
+    prepayId: varchar('prepay_id', { length: 160 }),
+    amount: bigint('amount', { mode: 'number' }).notNull(),
+    attemptStatus: paymentAttemptStatus('attempt_status').default('initiated').notNull(),
+    failureReason: varchar('failure_reason', { length: 120 }),
+    initiatedAt: timestamp('initiated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_payment_attempts', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_payment_attempts__payment_id__payments',
+      columns: [table.paymentId],
+      foreignColumns: [payments.id],
+    }).onDelete('restrict'),
+    uniqueIndex('uidx_payment_attempts__merchant_reference').on(table.merchantReference),
+    uniqueIndex('uidx_payment_attempts__payment_id_attempt_number').on(
+      table.paymentId,
+      table.attemptNumber,
+    ),
+    uniqueIndex('uidx_payment_attempts__provider_transaction_id')
+      .on(table.providerTransactionId)
+      .where(sql`${table.providerTransactionId} is not null`),
+    check('chk_payment_attempts__attempt_number_positive', sql`${table.attemptNumber} >= 1`),
+    check('chk_payment_attempts__amount_nonnegative', sql`${table.amount} >= 0`),
+  ],
+);
+
+/**
+ * Append-only log of every provider callback (Telebirr webhooks), month-
+ * partitioned by `received_at` for volume and retention. Stores the redacted raw
+ * payload plus the verification and processing outcome for reconciliation and
+ * dispute investigation. Exactly-once processing is NOT enforced here — a
+ * partitioned table cannot carry a global unique on a non-partition column — but
+ * by the `processed_provider_events` ledger, which is reserved transactionally
+ * before an event is processed. The PARTITION BY clause and partitions live in
+ * the hand-finished migration.
+ */
+export const webhookEvents = pgTable(
+  'webhook_events',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    providerKey: varchar('provider_key', { length: 80 }).notNull(),
+    providerEventId: varchar('provider_event_id', { length: 160 }).notNull(),
+    normalizedIdempotencyKey: varchar('normalized_idempotency_key', { length: 200 }).notNull(),
+    paymentAttemptId: uuid('payment_attempt_id'),
+    verificationResult: webhookVerificationResult('verification_result').notNull(),
+    processingStatus: webhookProcessingStatus('processing_status')
+      .default('received')
+      .notNull(),
+    rawPayload: jsonb('raw_payload').$type<Record<string, unknown>>().notNull(),
+    correlationId: uuid('correlation_id'),
+    receivedAt: timestamp('received_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_webhook_events', columns: [table.id, table.receivedAt] }),
+    foreignKey({
+      name: 'fk_webhook_events__payment_attempt_id__payment_attempts',
+      columns: [table.paymentAttemptId],
+      foreignColumns: [paymentAttempts.id],
+    }).onDelete('restrict'),
+    index('idx_webhook_events__provider_event_id').on(table.providerEventId),
+    index('idx_webhook_events__payment_attempt_id').on(table.paymentAttemptId),
+  ],
+);
+
+/**
+ * Provider-agnostic, non-partitioned, append-only idempotency ledger of external
+ * provider events already processed. The unique `(provider_key,
+ * provider_event_id)` is the true global exactly-once guarantee that a
+ * partitioned `webhook_events` cannot itself hold. Webhook processing reserves a
+ * row here inside the processing transaction before acting on the event; a
+ * duplicate delivery hits the unique constraint and is skipped. Immutable —
+ * mutation/truncate triggers (added in the migration) reject UPDATE/DELETE.
+ */
+export const processedProviderEvents = pgTable(
+  'processed_provider_events',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    providerKey: varchar('provider_key', { length: 80 }).notNull(),
+    providerEventId: varchar('provider_event_id', { length: 160 }).notNull(),
+    correlationId: uuid('correlation_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_processed_provider_events', columns: [table.id] }),
+    uniqueIndex('uidx_processed_provider_events__provider_key_provider_event_id').on(
+      table.providerKey,
+      table.providerEventId,
     ),
   ],
 );
@@ -989,7 +1198,10 @@ export const schema = {
   facilityTypes,
   otpChallenges,
   passwordCredentials,
+  paymentAttempts,
+  payments,
   permissions,
+  processedProviderEvents,
   qrCodes,
   refreshTokens,
   rolePermissions,
@@ -1002,4 +1214,5 @@ export const schema = {
   totpRecoveryCodes,
   userRoles,
   users,
+  webhookEvents,
 };

@@ -64,6 +64,9 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 - [Model check-ins with idempotency keys](phase-03.md#model-check-ins-with-idempotency-keys) — accepted/rejected scan ledger, `device_id + qr_code_id + scan_minute` idempotency dedup, and month-partitioning by `scan_minute` (so the unique key can include the partition key) with real-Postgres replay and partition-routing tests.
 - [Model daily facility capacity](phase-03.md#model-daily-facility-capacity) — per-facility/date `max_capacity`/`sold_count` with a UNIQUE constraint (FK target), the confirmed atomic conditional oversell-prevention update, and a real-Postgres concurrent last-unit race test.
 - [Model entrance tickets separately](phase-03.md#model-entrance-tickets-separately) — date/quantity ticket with integer-santim price snapshots, eight-state status enum, quantity-aware `used_quantity`, and a composite `(facility_id, visit_date)` capacity FK; owner-confirmed stop-and-ask schema.
+- [Model payments as polymorphic records](phase-03.md#model-payments-as-polymorphic-records) — one-per-payable aggregate, polymorphic payable pair (no FK), integer-santim amounts, and a write-once DB trigger on amount/payable/payer; owner-confirmed stop-and-ask schema.
+- [Model payment attempts separately from payment aggregate state](phase-03.md#model-payment-attempts-separately-from-payment-aggregate-state) — per-attempt retry/evidence rows with globally unique `merchant_reference` and partial-unique `provider_transaction_id`.
+- [Model Telebirr webhook events](phase-03.md#model-telebirr-webhook-events) — month-partitioned redacted callback log plus a non-partitioned immutable `processed_provider_events` dedup ledger (reserve-before-process) resolving the partition-vs-idempotency conflict.
 
 ## Phase 4 — Authentication and Security
 
