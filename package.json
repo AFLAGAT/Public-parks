@@ -23,6 +23,7 @@
     "auth:provision-super-admin": "node -r tsx src/auth/provision-super-admin.ts",
     "audit:maintain-partitions": "node -r tsx src/audit-logs/maintain-partitions.ts",
     "audit:apply-runtime-grants": "node -r tsx src/audit-logs/apply-runtime-grants.ts",
+    "checkins:maintain-partitions": "node -r tsx src/sync/maintain-check-in-partitions.ts",
     "docs:generate": "APP_NODE_ENV=development DB_PRIMARY_URL=postgres://p:p@localhost:5432/p APP_ENABLE_DOCS=true node -r tsx src/docs/generate-openapi.ts"
   },
   "dependencies": {

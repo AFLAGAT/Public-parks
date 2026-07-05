@@ -86,6 +86,11 @@ export const qrScannableType = pgEnum('qr_scannable_type', [
   'entrance_ticket',
 ]);
 export const qrCodeStatus = pgEnum('qr_code_status', ['active', 'revoked']);
+export const checkInValidationSource = pgEnum('check_in_validation_source', [
+  'online',
+  'offline_sync',
+]);
+export const checkInResult = pgEnum('check_in_result', ['accepted', 'rejected']);
 
 /**
  * Client-neutral identity shared by resident, staff, and admin experiences.
@@ -325,6 +330,80 @@ export const qrCodes = pgTable(
     check(
       'chk_qr_codes__revocation_consistency',
       sql`(${table.qrCodeStatus} = 'active' and ${table.revokedAt} is null) or (${table.qrCodeStatus} = 'revoked' and ${table.revokedAt} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * Attendance / scan ledger for QR validation, produced by online staff scans
+ * and by offline sync push. Every scan — accepted or rejected — is recorded, so
+ * duplicates and conflicts are logged rather than silently dropped (confirmed
+ * sync-conflict rule). Exact offline replay is absorbed idempotently by the
+ * confirmed key `device_id + qr_code_id + scan_time_rounded_to_minute`.
+ *
+ * Partitioned monthly by `scan_minute` (a high-growth table per the database
+ * scaling decision). The partition key is the minute-truncated scan time rather
+ * than `created_at` precisely so the idempotency unique index can include the
+ * partition key — a Postgres requirement for unique constraints on partitioned
+ * tables — and thereby enforce true global replay dedup. The PARTITION BY clause
+ * and the initial month partitions live in the hand-finished migration.
+ */
+export const checkIns = pgTable(
+  'check_ins',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    qrCodeId: uuid('qr_code_id').notNull(),
+    staffUserId: uuid('staff_user_id').notNull(),
+    facilityId: uuid('facility_id').notNull(),
+    deviceId: varchar('device_id', { length: 128 }).notNull(),
+    validationSource: checkInValidationSource('validation_source').notNull(),
+    checkInResult: checkInResult('check_in_result').notNull(),
+    rejectionReason: varchar('rejection_reason', { length: 80 }),
+    scannedAt: timestamp('scanned_at', { withTimezone: true, mode: 'date' }).notNull(),
+    scanMinute: timestamp('scan_minute', { withTimezone: true, mode: 'date' }).notNull(),
+    syncBatchId: uuid('sync_batch_id'),
+    correlationId: uuid('correlation_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_check_ins', columns: [table.id, table.scanMinute] }),
+    foreignKey({
+      name: 'fk_check_ins__qr_code_id__qr_codes',
+      columns: [table.qrCodeId],
+      foreignColumns: [qrCodes.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_check_ins__staff_user_id__users',
+      columns: [table.staffUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_check_ins__facility_id__facilities',
+      columns: [table.facilityId],
+      foreignColumns: [facilities.id],
+    }).onDelete('restrict'),
+    uniqueIndex('uidx_check_ins__idempotency').on(
+      table.deviceId,
+      table.qrCodeId,
+      table.scanMinute,
+    ),
+    index('idx_check_ins__facility_id_scan_minute').on(
+      table.facilityId,
+      table.scanMinute,
+    ),
+    index('idx_check_ins__qr_code_id').on(table.qrCodeId),
+    check(
+      'chk_check_ins__scan_minute_truncated',
+      sql`${table.scanMinute} = date_trunc('minute', ${table.scannedAt})`,
+    ),
+    check(
+      'chk_check_ins__rejection_reason_consistency',
+      sql`(${table.checkInResult} = 'accepted' and ${table.rejectionReason} is null) or (${table.checkInResult} = 'rejected' and ${table.rejectionReason} is not null)`,
     ),
   ],
 );
@@ -771,6 +850,7 @@ export const auditLogs = pgTable(
 export const schema = {
   auditLogs,
   authenticationSessions,
+  checkIns,
   facilities,
   facilityTypes,
   otpChallenges,
