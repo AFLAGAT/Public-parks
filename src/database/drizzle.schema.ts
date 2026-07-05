@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   customType,
+  date,
   foreignKey,
   index,
   integer,
@@ -12,6 +14,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
   varchar,
@@ -91,6 +94,16 @@ export const checkInValidationSource = pgEnum('check_in_validation_source', [
   'offline_sync',
 ]);
 export const checkInResult = pgEnum('check_in_result', ['accepted', 'rejected']);
+export const entranceTicketStatus = pgEnum('entrance_ticket_status', [
+  'pending_payment',
+  'confirmed',
+  'partially_used',
+  'fully_used',
+  'canceled',
+  'expired',
+  'refunded',
+  'disputed',
+]);
 
 /**
  * Client-neutral identity shared by resident, staff, and admin experiences.
@@ -404,6 +417,125 @@ export const checkIns = pgTable(
     check(
       'chk_check_ins__rejection_reason_consistency',
       sql`(${table.checkInResult} = 'accepted' and ${table.rejectionReason} is null) or (${table.checkInResult} = 'rejected' and ${table.rejectionReason} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * Daily entrance capacity counter for entrance-based facilities (pools, parks).
+ * One row per facility per service date. Oversell is prevented by the confirmed
+ * atomic conditional update
+ *   UPDATE ... SET sold_count = sold_count + :qty
+ *    WHERE facility_id = :id AND service_date = :date
+ *      AND sold_count + :qty <= max_capacity RETURNING id
+ * (no row returned = sold out). The `sold_count <= max_capacity` check is a
+ * database backstop behind that guard. The uniqueness of (facility_id,
+ * service_date) is a UNIQUE CONSTRAINT (not just an index) because it is the
+ * target of the entrance_tickets composite foreign key.
+ */
+export const facilityCapacities = pgTable(
+  'facility_capacities',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    facilityId: uuid('facility_id').notNull(),
+    serviceDate: date('service_date', { mode: 'string' }).notNull(),
+    maxCapacity: integer('max_capacity').notNull(),
+    soldCount: integer('sold_count').default(0).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_facility_capacities', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_facility_capacities__facility_id__facilities',
+      columns: [table.facilityId],
+      foreignColumns: [facilities.id],
+    }).onDelete('restrict'),
+    unique('uq_facility_capacities__facility_id_service_date').on(
+      table.facilityId,
+      table.serviceDate,
+    ),
+    check('chk_facility_capacities__max_capacity_nonnegative', sql`${table.maxCapacity} >= 0`),
+    check(
+      'chk_facility_capacities__sold_count_bounds',
+      sql`${table.soldCount} >= 0 and ${table.soldCount} <= ${table.maxCapacity}`,
+    ),
+  ],
+);
+
+/**
+ * Date-and-quantity entrance ticket for pools and parks. Payments reference this
+ * row polymorphically (`payable_type = 'entrance_ticket'`) and QR codes scan it
+ * (`scannable_type = 'entrance_ticket'`); neither is a foreign key. Money is
+ * stored in integer santim (1 ETB = 100 santim), ETB platform-wide. Price
+ * snapshots preserve the amount the payment is verified against even if the
+ * facility's live pricing later changes. Quantity-aware consumption is tracked
+ * by `used_quantity`, incremented from `check_ins`. The composite foreign key
+ * guarantees a ticket can only exist for a facility/date that has a capacity row.
+ * Lifecycle transition rules live in the Phase 6 state machine; this is the
+ * column set and enum only.
+ */
+export const entranceTickets = pgTable(
+  'entrance_tickets',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    facilityId: uuid('facility_id').notNull(),
+    buyerUserId: uuid('buyer_user_id').notNull(),
+    visitDate: date('visit_date', { mode: 'string' }).notNull(),
+    quantity: integer('quantity').notNull(),
+    usedQuantity: integer('used_quantity').default(0).notNull(),
+    entranceTicketStatus: entranceTicketStatus('entrance_ticket_status')
+      .default('pending_payment')
+      .notNull(),
+    unitPriceAtBooking: bigint('unit_price_at_booking', { mode: 'number' }).notNull(),
+    totalAmountAtBooking: bigint('total_amount_at_booking', { mode: 'number' }).notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ name: 'pk_entrance_tickets', columns: [table.id] }),
+    foreignKey({
+      name: 'fk_entrance_tickets__facility_id__facilities',
+      columns: [table.facilityId],
+      foreignColumns: [facilities.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_entrance_tickets__buyer_user_id__users',
+      columns: [table.buyerUserId],
+      foreignColumns: [users.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'fk_entrance_tickets__facility_service_date__facility_capacities',
+      columns: [table.facilityId, table.visitDate],
+      foreignColumns: [facilityCapacities.facilityId, facilityCapacities.serviceDate],
+    }).onDelete('restrict'),
+    index('idx_entrance_tickets__facility_id_visit_date_status').on(
+      table.facilityId,
+      table.visitDate,
+      table.entranceTicketStatus,
+    ),
+    index('idx_entrance_tickets__buyer_user_id_visit_date').on(
+      table.buyerUserId,
+      table.visitDate,
+    ),
+    check('chk_entrance_tickets__quantity_positive', sql`${table.quantity} >= 1`),
+    check(
+      'chk_entrance_tickets__used_quantity_bounds',
+      sql`${table.usedQuantity} >= 0 and ${table.usedQuantity} <= ${table.quantity}`,
+    ),
+    check('chk_entrance_tickets__unit_price_nonnegative', sql`${table.unitPriceAtBooking} >= 0`),
+    check(
+      'chk_entrance_tickets__total_matches_quantity',
+      sql`${table.totalAmountAtBooking} = ${table.unitPriceAtBooking} * ${table.quantity}`,
     ),
   ],
 );
@@ -851,7 +983,9 @@ export const schema = {
   auditLogs,
   authenticationSessions,
   checkIns,
+  entranceTickets,
   facilities,
+  facilityCapacities,
   facilityTypes,
   otpChallenges,
   passwordCredentials,
