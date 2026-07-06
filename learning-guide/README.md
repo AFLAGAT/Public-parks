@@ -81,6 +81,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 ## Phase 6 — Business Logic
 
 - [Implement payment provider abstraction with a mock/sandbox adapter](phase-06.md#implement-payment-provider-abstraction-with-a-mocksandbox-adapter) — `PaymentProvider` port + deterministic `MockPaymentProvider`; async-confirmation model, pure signature-verifying `verifyCallback` (dedup left to the ledger), and failure-mode unit coverage.
+- [Define entrance ticket state machine](phase-06.md#define-entrance-ticket-state-machine) — pure `EntranceTicketStatePolicy` over the eight-value enum, `legal`/`noop`/`illegal` classification with idempotent self-transitions, conservative refund/dispute edges, and failure-mode unit coverage.
 
 ## Phase 7 — Payment System (Telebirr)
 
