@@ -125,8 +125,8 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# Claude Code local session settings
-.claude/
+# Claude Code local session settings (skills are shared and tracked)
+.claude/settings.local.json
 
 # pnpm
 .pnpm-store
