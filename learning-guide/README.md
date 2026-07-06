@@ -80,7 +80,7 @@ This README is a one-line-per-entry index linking into the phase files. Add a ne
 
 ## Phase 6 — Business Logic
 
-- _(no entries yet)_
+- [Implement payment provider abstraction with a mock/sandbox adapter](phase-06.md#implement-payment-provider-abstraction-with-a-mocksandbox-adapter) — `PaymentProvider` port + deterministic `MockPaymentProvider`; async-confirmation model, pure signature-verifying `verifyCallback` (dedup left to the ledger), and failure-mode unit coverage.
 
 ## Phase 7 — Payment System (Telebirr)
 
