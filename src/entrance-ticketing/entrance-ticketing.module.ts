@@ -1,4 +1,8 @@
 import { Module } from '@nestjs/common';
+import { EntranceTicketStatePolicy } from './entrance-ticket-state.policy';
 
-@Module({})
+@Module({
+  providers: [EntranceTicketStatePolicy],
+  exports: [EntranceTicketStatePolicy],
+})
 export class EntranceTicketingModule {}
